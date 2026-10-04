@@ -23,13 +23,43 @@ npm run build && npm start   # production build
 The app ships with a seeded demo dataset (8 requirements, 17 offers, 8 providers). Everything the UI does now goes through the REST API in `app/api` and is persisted to `data/xmarket.json`, so posting a requirement, submitting a bid, shortlisting or awarding survives a reload **and** a server restart. Use the **role switch** in the header to move between the buyer and provider experiences.
 
 ```bash
-npm run api:smoke   # 35 checks against a running server: CRUD, rules, ranking, errors
-npm run ai:check    # reports, per AI capability, whether the live model or the offline fallback answered
+npm run api:smoke    # 40 checks against a running server: CRUD, rules, ranking, import, errors
+npm run ai:check     # probes the provider, then reports which engine answered each capability
+npm run data:import  # pull real public tenders in (see "Real data" below)
 ```
 
-Both expect the server on `http://127.0.0.1:3000` (`BASE_URL` overrides it). The smoke suite exercises real writes, then restores the seeded dataset at the end, so it is safe to re-run.
+Both expect the server on `http://127.0.0.1:3000` (`BASE_URL` overrides it). The smoke suite writes real records and **restores the seeded dataset at the end** — which also removes anything you posted or imported. Run it with `npm run api:smoke -- --keep` to leave the store untouched.
 
 ---
+
+## 📥 Real data
+
+The marketplace ships with demo content so a fresh clone is not empty. Real records go in two ways: post them in the app, or import published procurement notices.
+
+```bash
+npm run dev                                   # in one terminal
+npm run data:import -- --dry-run              # fetch and report, write nothing
+npm run data:import -- --limit=40             # import up to 40 notices
+npm run data:import -- --keyword=software     # narrow the search
+npm run data:import -- --source=ocds --file=feed.json
+```
+
+| Source | What it is | Key needed |
+| --- | --- | --- |
+| `contracts-finder` (default) | Open notices from **UK Contracts Finder**, published by UK public bodies. Every imported listing links back to the original notice. | none |
+| `ocds` | Any [Open Contracting Data Standard](https://standard.open-contracting.org/) export, from a file or URL (Find a Tender, TED, national portals). | none |
+| `sample` | A bundled fixture in `scripts/fixtures` used by the test suite. **Not live data** — for verifying the mapper offline. | none |
+
+Useful flags: `--min-value=50000`, `--include-closed`, `--page-size=500`, `--api=http://host:3000`.
+
+What the importer does, and deliberately does not do:
+
+- **Maps, never invents.** CPV division codes and keyword hints pick a category; the buyer's organisation becomes a buyer record; the published value becomes the budget ceiling with an 85% target. A notice with no published value is **skipped**, not given a made-up budget.
+- **Decodes and truncates** HTML entities and runaway descriptions so the feed stays readable.
+- **De-duplicates on the source's own identifier**, so re-running an import only brings in what is new. A second run reports `imported 0`.
+- **Records provenance.** Imported requirements carry a `source` block (name, link, reference, timestamp) and show it as a badge in the UI, so a listing can always be traced to where it came from.
+
+To run on real data only, set `XMARKET_SEED=empty` and delete `data/xmarket.json` — the app then boots with an empty store, and everything in it is something you posted or imported.
 
 ## 🎨 UI/UX system
 
@@ -186,6 +216,7 @@ Every screen reads and writes through the API — there is no client-only demo s
 | `GET` | `/api/stats` | Buyer or provider dashboard aggregates |
 | `GET` | `/api/events` | Audit trail (`requirement.created`, `bid.status`, `ai.invoked`, …) |
 | `POST` | `/api/admin/reset` | Restore the seeded demo set (`?scope=data\|ai-cache\|all`) — production-blocked unless `XMARKET_ALLOW_RESET=true` |
+| `POST` | `/api/admin/import` | Bulk-create records from an external source; de-duplicates on the source ref, `dryRun` supported — production-blocked unless `XMARKET_ALLOW_IMPORT=true` |
 
 **Business rules live on the server, not in the browser.** An offer above the buyer's ceiling, a delivery date past the deadline, a second live offer from the same provider, or a bid on an awarded requirement are all rejected with a message the UI shows verbatim. Ranking is computed server-side by the same pure engine the UI imports, so the numbers can never disagree.
 
@@ -203,10 +234,20 @@ Four capabilities sit on top of the deterministic engine. Each one is a prompt p
 | Judge an offer | `POST /api/ai/score-bid` | 0–100 semantic fit for one proposal, with what it addresses and what it skips |
 | Draft a proposal | `POST /api/ai/draft-bid` | A provider-side pitch, milestones, tag coverage and risks for one requirement |
 | Explain a shortlist | `POST /api/ai/summarize` | Headline, recommendation, trade-offs and things to verify before awarding |
+| Health of the model | `GET /api/ai/status?probe=1` | Calls the provider for real, so a rejected key is reported as broken rather than merely "configured" |
 
 Responses look like `{ "data": …, "meta": { "provider": "openai", "model": "gpt-4o-mini", "mode": "llm", "cached": false, "latencyMs": 812 } }`. `mode` is `llm` when a model answered and `heuristic` when the built-in fallback did.
 
-### Configure a provider
+### Configure a provider (free, no card)
+
+The quickest working setup is Google Gemini's free tier:
+
+1. Sign in at **https://aistudio.google.com/apikey** with any Google account → **Create API key**. No card, no billing account.
+2. Copy `.env.example` to `.env.local`, uncomment `GEMINI_API_KEY=` and paste the key.
+3. **Restart `npm run dev`** — env files are read once, at boot.
+4. Prove it works: open the status chip in the header and press **Test the key**, or run `npm run ai:check`. The probe line must say `ok`.
+
+The key stays on your machine: `.env.local` is git-ignored, never logged, and any key-shaped text in an upstream error is redacted before it reaches a log, a response or the UI.
 
 Copy `.env.example` to `.env.local` and set **one** key. The provider is auto-detected in this order, and `AI_PROVIDER` overrides the guess:
 
@@ -214,7 +255,7 @@ Copy `.env.example` to `.env.local` and set **one** key. The provider is auto-de
 | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-latest` |
-| Google Gemini | `GEMINI_API_KEY` | `gemini-2.0-flash` |
+| Google Gemini | `GEMINI_API_KEY` | `gemini-2.5-flash` |
 | Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
 | OpenRouter | `OPENROUTER_API_KEY` | `openai/gpt-4o-mini` |
 | Ollama (local) | `OLLAMA_BASE_URL` | `llama3.1` |
@@ -237,7 +278,15 @@ node scripts/mock-llm.mjs              # OpenAI-compatible mock on :4010, no key
 # then in .env.local: OPENAI_API_KEY=mock-key OPENAI_BASE_URL=http://127.0.0.1:4010/v1
 ```
 
-`scripts/mock-llm.mjs` answers each prompt shape and wraps every third reply in prose and ```json fences, which is what proves the extraction path. `npm run ai:check` prints `MODEL` only when a real provider answered end to end; `HEURISTIC` means no key is configured.
+`scripts/mock-llm.mjs` answers each prompt shape and wraps every third reply in prose and ```json fences, which is what proves the extraction path. It can also simulate provider failures, so the error handling is testable without waiting for a real outage:
+
+```bash
+MOCK_LLM_FAIL=401 node scripts/mock-llm.mjs   # wrong or revoked key
+MOCK_LLM_FAIL=429 node scripts/mock-llm.mjs   # quota exhausted
+MOCK_LLM_FAIL=500 node scripts/mock-llm.mjs   # provider-side fault (client retries once)
+```
+
+`npm run ai:check` prints `MODEL` only when a real provider answered end to end; `HEURISTIC` means no key is configured; a failed **probe** means a key is configured but was rejected — the run then says so explicitly, because a cached answer from an earlier run would otherwise look like success.
 
 ---
 

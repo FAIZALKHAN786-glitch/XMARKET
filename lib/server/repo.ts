@@ -288,7 +288,136 @@ export function rank(
   return ranked.sort((a, b) => b.score.total - a.score.total);
 }
 
+/* ---------------------------------------------------------------- importing */
+
+export interface ImportOutcome {
+  imported: number;
+  skipped: { ref?: string; title: string; reason: string }[];
+  buyersCreated: number;
+  total: number;
+}
+
+/**
+ * Bulk-creates requirements that came from an external source.
+ *
+ * Two deliberate behaviours: records are de-duplicated on the source's own
+ * identifier so re-running an import is safe, and buyers are created from the
+ * publisher's organisation name because an imported notice belongs to the
+ * organisation that published it, not to the signed-in demo buyer.
+ */
+export async function importRequirements(
+  records: (Omit<Requirement, "id" | "postedAt" | "views" | "status" | "buyerId"> & {
+    buyerName: string;
+  })[],
+  options: { actor?: string; dryRun?: boolean } = {}
+): Promise<ImportOutcome> {
+  const db = await getDb();
+  const seen = new Set(
+    db.requirements.map((r) => r.source?.ref).filter((v): v is string => Boolean(v))
+  );
+  const knownBuyers = new Map(db.buyers.map((b) => [b.name.toLowerCase(), b.id]));
+
+  const skipped: ImportOutcome["skipped"] = [];
+  const accepted: typeof records = [];
+  // De-duplicate inside the batch as well as against the database.
+  const batchSeen = new Set<string>();
+
+  for (const record of records) {
+    const ref = record.source?.ref;
+    if (ref && seen.has(ref)) {
+      skipped.push({ ref, title: record.title, reason: "already imported" });
+      continue;
+    }
+    if (ref && batchSeen.has(ref)) {
+      skipped.push({ ref, title: record.title, reason: "duplicate in this batch" });
+      continue;
+    }
+    if (ref) batchSeen.add(ref);
+    accepted.push(record);
+  }
+
+  const newBuyerNames = [
+    ...new Set(
+      accepted
+        .map((r) => r.buyerName)
+        .filter((name) => !knownBuyers.has(name.toLowerCase()))
+    ),
+  ];
+
+  if (options.dryRun) {
+    return {
+      imported: 0,
+      skipped,
+      buyersCreated: newBuyerNames.length,
+      total: accepted.length,
+    };
+  }
+
+  await mutate((d) => {
+    for (const name of newBuyerNames) {
+      const id = uid("b_org");
+      knownBuyers.set(name.toLowerCase(), id);
+      d.buyers.push({
+        id,
+        name,
+        company: name,
+        location: "United Kingdom",
+        initials: initials(name),
+        rating: 0,
+        posted: 0,
+        awarded: 0,
+      });
+    }
+    for (const record of accepted) {
+      const { buyerName, ...rest } = record;
+      const buyerId = knownBuyers.get(buyerName.toLowerCase()) ?? "b_me";
+      d.requirements.unshift({
+        ...rest,
+        buyerId,
+        id: uid("r"),
+        postedAt: rest.source?.importedAt ?? new Date().toISOString(),
+        views: 0,
+        status: "open",
+      });
+    }
+    const buyer = d.buyers.find((b) => b.id === "b_me");
+    if (buyer) buyer.posted += 0;
+  });
+
+  await record({
+    type: "requirement.created",
+    actor: options.actor ?? "import",
+    summary: `Imported ${accepted.length} requirement${
+      accepted.length === 1 ? "" : "s"
+    } from ${accepted[0]?.source?.name ?? "an external source"}`,
+    meta: {
+      imported: accepted.length,
+      skipped: skipped.length,
+      buyersCreated: newBuyerNames.length,
+    },
+  });
+
+  return {
+    imported: accepted.length,
+    skipped,
+    buyersCreated: newBuyerNames.length,
+    total: records.length,
+  };
+}
+
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter((w) => /[a-z]/i.test(w[0] ?? ""))
+      .slice(0, 2)
+      .map((w) => w[0]!.toUpperCase())
+      .join("") || "??"
+  );
+}
+
 /* ----------------------------------------------------------------- events */
+
 
 export async function listEvents(limit = 50) {
   const db = await getDb();

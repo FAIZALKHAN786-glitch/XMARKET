@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ZodType } from "zod";
-import { ApiError } from "./http";
+import { ApiError, type ApiErrorCode } from "./http";
 import { readCache, writeCache } from "./repo";
 
 /* ==========================================================================
@@ -111,7 +111,7 @@ function buildConfig(
       return {
         provider,
         apiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
-        model: pick("GEMINI_MODEL", "gemini-2.0-flash"),
+        model: pick("GEMINI_MODEL", "gemini-2.5-flash"),
         baseUrl: pick(
           "GEMINI_BASE_URL",
           "https://generativelanguage.googleapis.com/v1beta"
@@ -162,6 +162,70 @@ export function status() {
         ? "No API key configured — AI endpoints return deterministic heuristic output and are labelled as such in the UI."
         : `Requests are sent to ${c.provider} (${c.model}).`,
   };
+}
+
+/* ------------------------------------------------------------------- health */
+
+export interface HealthResult {
+  ok: boolean;
+  provider: ProviderName;
+  model: string;
+  latencyMs?: number;
+  detail?: string;
+  /** Populated when the probe failed, so the UI can say which kind of failure. */
+  code?: ApiErrorCode;
+  /** True when the reply came from the cache and the provider was not called. */
+  cached?: boolean;
+}
+
+/**
+ * Actually calls the provider with a one-token prompt.
+ *
+ * `status()` only reports whether a key is *present*; that is not the same as
+ * a key that *works*, and the difference is exactly what confuses someone who
+ * has just pasted their first key. This is used by /api/ai/status?probe=1 and
+ * by scripts/ai-check.mjs.
+ */
+export async function health(options: { noCache?: boolean } = {}): Promise<HealthResult> {
+  const c = config();
+  if (c.provider === "offline") {
+    return {
+      ok: false,
+      provider: "offline",
+      model: c.model,
+      code: "ai_unavailable",
+      detail:
+        "No API key configured. Add GEMINI_API_KEY (or another provider) to .env.local and restart.",
+    };
+  }
+
+  const started = Date.now();
+  try {
+    const result = await chat<string>(
+      [
+        { role: "system", content: "You are a health check. Reply with the single word: ok" },
+        { role: "user", content: "ping" },
+      ],
+      { temperature: 0, maxTokens: 16, timeoutMs: 20_000, noCache: options.noCache !== false }
+    );
+    return {
+      ok: true,
+      provider: result.provider,
+      model: result.model,
+      latencyMs: result.latencyMs,
+      cached: result.cached,
+    };
+  } catch (error) {
+    const apiError = error instanceof ApiError ? error : undefined;
+    return {
+      ok: false,
+      provider: c.provider,
+      model: c.model,
+      latencyMs: Date.now() - started,
+      code: apiError?.code ?? "ai_unavailable",
+      detail: redact(apiError?.message ?? (error instanceof Error ? error.message : "probe failed")),
+    };
+  }
 }
 
 /* ------------------------------------------------------------------ prompt */
@@ -282,8 +346,22 @@ export async function chat<T = string>(
       return result;
     } catch (error) {
       lastError = error;
-      // A timeout or an auth failure will not fix itself on a retry.
-      if (error instanceof ApiError && error.code === "ai_unavailable") break;
+      // An auth failure, a quota rejection or a bad request will not fix
+      // itself on a retry — and a retry against a free tier can burn the
+      // little quota that is left.
+      if (
+        error instanceof ApiError &&
+        (error.code === "ai_unavailable" ||
+          error.code === "rate_limited" ||
+          error.code === "auth" ||
+          error.code === "bad_request")
+      ) {
+        break;
+      }
+      if (error instanceof ApiError && error.code === "upstream") {
+        // Transient server-side fault: worth exactly one retry.
+        if (attempt > 0) break;
+      }
     }
   }
 
@@ -315,12 +393,32 @@ async function callProvider(
     });
 
     if (!response.ok) {
-      const detail = await response.text();
-      const retryable = response.status === 429 || response.status >= 500;
-      throw new ApiError(
-        retryable ? "ai_unavailable" : "unprocessable",
-        `${c.provider} returned ${response.status}: ${detail.slice(0, 300)}`
-      );
+      const raw = await response.text();
+      const detail = redact(raw).slice(0, 300);
+      const status = response.status;
+
+      // 401/403 will never fix itself; a 4xx that is not a rate limit is the
+      // caller's fault. Everything else is transient and worth surfacing as
+      // "try again" rather than "your key is wrong".
+      const kind: ApiError["code"] =
+        status === 401 || status === 403
+          ? "auth"
+          : status === 429
+            ? "rate_limited"
+            : status >= 500
+              ? "upstream"
+              : "bad_request";
+
+      const advice =
+        status === 401 || status === 403
+          ? " The key was rejected — check it is correct, active and has access to this model."
+          : status === 429
+            ? " The provider's rate or quota limit was reached; the free tier resets on a rolling window."
+            : "";
+
+      throw new ApiError(kind, `${c.provider} returned ${status}: ${detail}${advice}`, {
+        status,
+      });
     }
 
     const json = (await response.json()) as unknown;
@@ -340,6 +438,21 @@ async function callProvider(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Strips anything key-shaped out of an upstream error before it is logged,
+ * cached or shown in the UI. Providers occasionally echo the request back;
+ * this is the last line of defence for a key that must never reach a log.
+ */
+export function redact(text: string): string {
+  return text
+    .replace(/(sk-[A-Za-z0-9_-]{8})[A-Za-z0-9_-]*/g, "$1…")
+    .replace(/(AIza[A-Za-z0-9_-]{6})[A-Za-z0-9_-]*/g, "$1…")
+    .replace(/(gsk_[A-Za-z0-9_-]{6})[A-Za-z0-9_-]*/g, "$1…")
+    .replace(/(sk-ant-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]*/g, "$1…")
+    .replace(/((?:api[_-]?key|authorization|x-api-key|x-goog-api-key)"?\s*[:=]\s*"?)[^"'\s,}]+/gi, "$1[redacted]")
+    .replace(/(Bearer\s+)[A-Za-z0-9._-]{6,}/gi, "$1[redacted]");
 }
 
 function endpoint(c: Config) {

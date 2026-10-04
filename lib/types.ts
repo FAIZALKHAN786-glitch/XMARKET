@@ -47,6 +47,22 @@ export interface Provider {
   memberSince: number;
 }
 
+/**
+ * Provenance for records that were imported rather than composed in the app.
+ * Kept on the record so a listing can always be traced back to its source and
+ * so re-running an import can skip what it already brought in.
+ */
+export interface SourceRef {
+  /** Human label, e.g. "UK Contracts Finder". */
+  name: string;
+  /** Canonical link to the original notice. */
+  url: string;
+  /** The source's own identifier for this record. */
+  ref?: string;
+  /** ISO timestamp of the import that created this record. */
+  importedAt: string;
+}
+
 export interface Requirement {
   id: string;
   title: string;
@@ -68,6 +84,8 @@ export interface Requirement {
   mustHaves: string[];
   status: RequirementStatus;
   views: number;
+  /** Present only on imported records — see SourceRef. */
+  source?: SourceRef;
 }
 
 export interface Milestone {

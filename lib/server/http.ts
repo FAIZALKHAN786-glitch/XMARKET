@@ -12,6 +12,10 @@ export type ApiErrorCode =
   | "unprocessable"
   | "rate_limited"
   | "ai_unavailable"
+  /** The configured provider rejected our credentials. */
+  | "auth"
+  /** The provider failed on its side (5xx) — transient. */
+  | "upstream"
   | "internal";
 
 const STATUS: Record<ApiErrorCode, number> = {
@@ -21,6 +25,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   unprocessable: 422,
   rate_limited: 429,
   ai_unavailable: 503,
+  auth: 502,
+  upstream: 502,
   internal: 500,
 };
 

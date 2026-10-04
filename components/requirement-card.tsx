@@ -18,6 +18,7 @@ import { useStore } from "@/lib/store";
 import type { Requirement } from "@/lib/types";
 import { CategoryMark } from "./icons";
 import { Badge, Progress, StatusBadge, TimeAgo } from "./ui/primitives";
+import { SourceBadge } from "./source-badge";
 
 export function RequirementCard({
   requirement,
@@ -80,6 +81,7 @@ export function RequirementCard({
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Badge tone="neutral">{category?.label}</Badge>
+        <SourceBadge source={requirement.source} />
         {mine && <Badge tone="outline">Your request</Badge>}
         <StatusBadge status={requirement.status} />
       </div>

@@ -1,5 +1,14 @@
 set -u
 B=http://127.0.0.1:3000
+
+# This suite WRITES to the store: it creates requirements and bids. It finishes
+# by restoring the seeded demo dataset, which is what keeps repeated runs
+# repeatable — but it also removes anything you posted or imported yourself.
+# Pass --keep (or KEEP_DATA=1) to leave the store alone; the records this run
+# created will stay behind.
+KEEP=0
+for arg in "$@"; do [ "$arg" = "--keep" ] && KEEP=1; done
+[ "${KEEP_DATA:-0}" = "1" ] && KEEP=1
 pass=0; fail=0
 # Smoke test for every API route. Requires a running server:
 #   npm run dev      npm run api:smoke
@@ -8,6 +17,13 @@ check() { # name expected_code actual_code [body]
   else printf "  FAIL  %-46s got %s want %s\n     %s\n" "$1" "$3" "$2" "${4:-}"; fail=$((fail+1)); fi
 }
 code() { curl -s -o /tmp/out.json -w "%{http_code}" "$@"; }
+
+if [ "$KEEP" = "1" ]; then
+  echo "(running with --keep: the store will not be reset, so this run's test records stay behind)"
+else
+  echo "(this suite restores the seeded demo dataset at the end — pass --keep to keep your own records)"
+fi
+echo
 
 echo "--- requirements ---"
 c=$(code $B/api/requirements); check "GET list" 200 "$c"
@@ -104,6 +120,55 @@ check "POST ai summarize" 200 "$c"
 python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        mode:',d['meta']['mode'],'| offers:',d['offerCount'],'| tradeoffs:',len(d['summary']['tradeoffs']))"
 
 echo
+echo "--- importing external records ---"
+c=$(code -X POST $B/api/admin/import -H 'content-type: application/json' -d '{
+ "dryRun": true,
+ "requirements": [{
+   "title":"Smoke test imported notice","summary":"A synthetic notice used to verify the import path end to end.",
+   "description":"Synthetic description long enough to pass validation. It exists only in the test suite.",
+   "category":"software","buyerName":"Smoke Test Borough Council",
+   "budgetMax":50000,"budgetTarget":42000,
+   "deadline":"2026-12-01","closesAt":"2026-11-20","location":"Testville",
+   "tags":["Testing","Fixture"],"mustHaves":[],
+   "source":{"name":"Smoke fixture","url":"https://example.org/notice/1","ref":"SMOKE-1","importedAt":"2026-10-04T00:00:00.000Z"}
+ }]}')
+check "POST import dry run" 200 "$c"
+python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        would import:',d['total'],'| new buyers:',d['buyersCreated'])"
+
+c=$(code -X POST $B/api/admin/import -H 'content-type: application/json' -d '{
+ "requirements": [{
+   "title":"Smoke test imported notice","summary":"A synthetic notice used to verify the import path end to end.",
+   "description":"Synthetic description long enough to pass validation. It exists only in the test suite.",
+   "category":"software","buyerName":"Smoke Test Borough Council",
+   "budgetMax":50000,"budgetTarget":42000,
+   "deadline":"2026-12-01","closesAt":"2026-11-20","location":"Testville",
+   "tags":["Testing","Fixture"],"mustHaves":[],
+   "source":{"name":"Smoke fixture","url":"https://example.org/notice/1","ref":"SMOKE-1","importedAt":"2026-10-04T00:00:00.000Z"}
+ }]}')
+check "POST import" 201 "$c"
+python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        imported:',d['imported'],'| buyers created:',d['buyersCreated'])"
+
+c=$(code -X POST $B/api/admin/import -H 'content-type: application/json' -d '{
+ "requirements": [{
+   "title":"Smoke test imported notice","summary":"A synthetic notice used to verify the import path end to end.",
+   "description":"Synthetic description long enough to pass validation. It exists only in the test suite.",
+   "category":"software","buyerName":"Smoke Test Borough Council",
+   "budgetMax":50000,"budgetTarget":42000,
+   "deadline":"2026-12-01","closesAt":"2026-11-20","location":"Testville",
+   "tags":["Testing","Fixture"],"mustHaves":[],
+   "source":{"name":"Smoke fixture","url":"https://example.org/notice/1","ref":"SMOKE-1","importedAt":"2026-10-04T00:00:00.000Z"}
+ }]}')
+check "POST import is idempotent" 201 "$c"
+python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];assert d['imported']==0,'re-import must not duplicate';print('        re-imported:',d['imported'],'| skipped:',len(d['skipped']),'—',d['skipped'][0]['reason'])"
+
+c=$(code -X POST $B/api/admin/import -H 'content-type: application/json' -d '{"requirements":[{"title":"bad"}]}')
+check "POST import validation rejected" 400 "$c"
+
+c=$(code "$B/api/requirements?q=Smoke%20test%20imported")
+check "imported record is listed" 200 "$c"
+python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];r=d['requirements'][0];print('        source:',r['source']['name'],'|',r['source']['url'])"
+
+echo
 echo "--- semantic blend + cache ---"
 c=$(code "$B/api/requirements/r_mech/compare?wSemantic=0.25"); check "GET blended compare" 200 "$c"
 python3 -c "import json;m=json.load(open('/tmp/out.json'))['data']['semanticMeta'];print('        semanticMeta:',m and (m['mode']+' | scored '+str(m['scoredBids'])+'/'+str(m['requestedBids'])+' | '+('cached' if m['cached'] else 'fresh')))"
@@ -116,8 +181,13 @@ python3 -c "import json;print('        dropped entries:',json.load(open('/tmp/ou
 
 echo
 echo "--- cleanup ---"
-c=$(code -X POST "$B/api/admin/reset?scope=all"); check "POST restore demo data" 200 "$c"
-python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        restored:',d['counts'])"
+if [ "$KEEP" = "1" ]; then
+  echo "  SKIP  restore demo data (--keep: your records were left untouched)"
+else
+  c=$(code -X POST "$B/api/admin/reset?scope=all"); check "POST restore demo data" 200 "$c"
+  python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        restored:',d['counts'])"
+  echo "        note: any records you posted or imported were removed by this reset"
+fi
 
 echo
 echo "RESULT: $pass passed, $fail failed"

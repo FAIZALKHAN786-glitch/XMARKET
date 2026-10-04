@@ -2,14 +2,15 @@
   "name": "xmarket",
   "version": "0.1.0",
   "private": true,
-  "description": "XMARKET — a needs-first reverse marketplace where buyers post requirements and providers bid, ranked by an intelligent compatibility engine.",
+  "description": "XMARKET \u2014 a needs-first reverse marketplace where buyers post requirements and providers bid, ranked by an intelligent compatibility engine.",
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "ai:check": "node scripts/ai-check.mjs",
-    "api:smoke": "bash scripts/api-smoke.sh"
+    "api:smoke": "bash scripts/api-smoke.sh",
+    "data:import": "node scripts/import-tenders.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.454.0",

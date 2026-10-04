@@ -30,6 +30,7 @@ import { BidCard } from "./bid-card";
 import { BidComposer } from "./bid-composer";
 import { CategoryMark } from "./icons";
 import { PageHeader } from "./nav";
+import { SourceBadge } from "./source-badge";
 import {
   Badge,
   Button,
@@ -41,6 +42,27 @@ import {
   TimeAgo,
 } from "./ui/primitives";
 import { ScoreBreakdown } from "./ui/score";
+
+/** Neutral placeholder shown while the first server sync is in flight. */
+function RequirementLoading() {
+  return (
+    <div className="frame pt-8 pb-16 md:pt-10">
+      <div className="h-4 w-28 rounded-full bg-white/5" />
+      <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <div className="h-8 w-3/4 rounded-lg bg-white/5" />
+          <div className="h-4 w-1/2 rounded-full bg-white/5" />
+          <div className="mt-8 space-y-3">
+            <div className="h-3 w-full rounded-full bg-white/5" />
+            <div className="h-3 w-11/12 rounded-full bg-white/5" />
+            <div className="h-3 w-4/5 rounded-full bg-white/5" />
+          </div>
+        </div>
+        <div className="surface h-64 animate-pulse-soft" />
+      </div>
+    </div>
+  );
+}
 import { Modal } from "./ui/overlay";
 import type { Tone } from "./ui/primitives";
 
@@ -59,12 +81,17 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
     meProviderId,
     meBuyerId,
     setBidStatus,
+    synced,
   } = useStore();
 
   const requirement = requirements.find((r) => r.id === requirementId);
   const [sort, setSort] = React.useState<SortKey>("compatibility");
   const [inspect, setInspect] = React.useState<string | null>(null);
   const [bidOpen, setBidOpen] = React.useState(false);
+
+  // A deep link renders before the first sync lands. Saying "this no longer
+  // exists" at that moment would be a claim we cannot support yet.
+  if (!requirement && !synced) return <RequirementLoading />;
 
   if (!requirement) {
     return (
@@ -144,6 +171,9 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[0.8125rem] faint">
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="size-3.5" /> {requirement.location}
+              {requirement.source && (
+                <SourceBadge source={requirement.source} className="align-middle" />
+              )}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Users className="size-3.5" /> {requirementBids.length} offers

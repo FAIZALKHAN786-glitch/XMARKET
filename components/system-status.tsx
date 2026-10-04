@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Database, Eraser, RefreshCw, Sparkles, WifiOff } from "lucide-react";
+import { AlertTriangle, Database, Eraser, PlugZap, RefreshCw, Sparkles, WifiOff } from "lucide-react";
 import { api, isApiError } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
@@ -20,6 +20,8 @@ export function SystemStatus({ className }: { className?: string }) {
   const { connected, syncError, aiStatus, refresh, busy, pushToast } = useStore();
   const [open, setOpen] = React.useState(false);
   const [clearing, setClearing] = React.useState(false);
+  const [probing, setProbing] = React.useState(false);
+  const [probe, setProbe] = React.useState<import("@/lib/api-client").AiProbe | null>(null);
   const syncing = Boolean(busy["requirement:create"] || busy["bid:create"]);
 
   const clearCache = async () => {
@@ -39,6 +41,43 @@ export function SystemStatus({ className }: { className?: string }) {
       });
     } finally {
       setClearing(false);
+    }
+  };
+
+  /**
+   * Ask the provider for a real reply. "A key is configured" and "the key
+   * works" are different facts, and only the second one matters to someone who
+   * has just pasted theirs in.
+   */
+  const testKey = async () => {
+    setProbing(true);
+    try {
+      const result = await api.ai.status({ probe: true });
+      setProbe(result.probe ?? null);
+      if (result.probe?.ok) {
+        pushToast({
+          title: "Model responded",
+          body: `${result.probe.provider} · ${result.probe.model} answered in ${result.probe.latencyMs}ms.`,
+          tone: "success",
+        });
+      } else {
+        pushToast({
+          title: "Model did not answer",
+          body: result.probe?.detail ?? "The provider rejected the request.",
+          tone: "error",
+        });
+      }
+    } catch (err) {
+      const message = isApiError(err) ? err.message : "Could not reach the API";
+      setProbe({
+        ok: false,
+        provider: aiStatus?.provider ?? "unknown",
+        model: aiStatus?.model ?? "unknown",
+        detail: message,
+      });
+      pushToast({ title: "Probe failed", body: message, tone: "error" });
+    } finally {
+      setProbing(false);
     }
   };
 
@@ -122,8 +161,35 @@ export function SystemStatus({ className }: { className?: string }) {
               </div>
             )}
 
+            {probe && (
+              <div
+                className={cn(
+                  "mt-3 rounded-lg border p-3",
+                  probe.ok ? "border-white/20 bg-white/[0.04]" : "border-white/12 bg-white/[0.02]"
+                )}
+              >
+                <p className="text-[0.6875rem] leading-relaxed text-white/75">
+                  {probe.ok ? (
+                    <>
+                      Provider answered — <span className="num">{probe.provider}</span> ·{" "}
+                      <span className="num">{probe.model}</span>, {probe.latencyMs}ms.
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-semibold text-white">Provider rejected the call.</span>{" "}
+                      {probe.detail}
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+
             <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3">
               <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={testKey} disabled={probing || !connected}>
+                  <PlugZap className={cn("size-3.5", probing && "animate-pulse")} />
+                  {probing ? "Testing…" : "Test the key"}
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => refresh()} disabled={syncing}>
                   <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
                   Resync

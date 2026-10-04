@@ -60,7 +60,32 @@ interface DbState {
 // hold its own copy and writes would clobber each other.
 const globalRef = globalThis as unknown as { __xmarketDb?: DbState };
 
+/**
+ * `XMARKET_SEED=empty` boots with nothing but the schema, for deployments that
+ * only want records that were actually posted or imported. Anything else keeps
+ * the demo dataset, which is what makes a fresh clone worth looking at.
+ */
 function seeded(): Database {
+  if ((process.env.XMARKET_SEED ?? "").toLowerCase() === "empty") {
+    return {
+      version: DB_VERSION,
+      buyers: [],
+      providers: [],
+      requirements: [],
+      bids: [],
+      events: [
+        {
+          id: "ev_seed",
+          at: new Date().toISOString(),
+          type: "db.seeded",
+          actor: "system",
+          summary: "Started with an empty store (XMARKET_SEED=empty)",
+        },
+      ],
+      aiCache: {},
+    };
+  }
+
   return {
     version: DB_VERSION,
     buyers: structuredClone(BUYERS),

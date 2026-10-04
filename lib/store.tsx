@@ -60,6 +60,8 @@ interface StoreValue {
 
   /* meta */
   hydrated: boolean;
+  /** The first server sync has settled — see the note on the state above. */
+  synced: boolean;
   /** True once the API answered; false while running on the seeded fallback. */
   connected: boolean;
   /** Set when the last sync failed, so the UI can say why. */
@@ -109,6 +111,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     saved: ["r_pcba", "r_migration"],
   });
   const [hydrated, setHydrated] = useState(false);
+  /**
+   * True once the first server sync has finished, successfully or not. Callers
+   * use it to distinguish "this record does not exist" from "we have not
+   * loaded it yet" — showing the former while still fetching tells the user
+   * something untrue.
+   */
+  const [synced, setSynced] = useState(false);
   const [connected, setConnected] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -144,11 +153,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const payload = await api.bootstrap();
       setRequirements(payload.requirements);
       setBids(payload.bids);
-      if (payload.providers.length) setProviders(payload.providers);
-      if (payload.buyers.length) setBuyers(payload.buyers);
+      // Adopted unconditionally: an empty server is a valid state (a clean
+      // deployment), and keeping the seed would show records that do not exist.
+      setProviders(payload.providers);
+      setBuyers(payload.buyers);
       setEvents(payload.events);
       setConnected(true);
       setSyncError(null);
+      setSynced(true);
     } catch (error) {
       // The UI keeps working on seeded data, but it must not pretend to be
       // connected: the banner reads from `syncError`.
@@ -156,6 +168,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setSyncError(
         isApiError(error) ? error.message : "Could not reach the XMARKET API"
       );
+      setSynced(true);
     }
   }, []);
 
@@ -215,6 +228,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       role: prefs.role,
       weights: prefs.weights,
       hydrated,
+      synced,
       connected,
       syncError,
       aiStatus,
@@ -376,6 +390,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     events,
     prefs,
     hydrated,
+    synced,
     connected,
     syncError,
     aiStatus,

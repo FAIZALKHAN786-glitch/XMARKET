@@ -16,6 +16,7 @@ import { createServer } from "node:http";
 
 const PORT = Number(process.env.MOCK_LLM_PORT ?? 4010);
 const MESSY = process.env.MESSY !== "0";
+const FAIL = Number(process.env.MOCK_LLM_FAIL ?? 0) || 0;
 let calls = 0;
 
 const parsedRequirement = {
@@ -136,6 +137,36 @@ const server = createServer((req, res) => {
     return;
   }
 
+  // Failure modes, so the app's error handling can be tested without waiting
+  // for a real provider to misbehave:
+  //   MOCK_LLM_FAIL=401  wrong or revoked key
+  //   MOCK_LLM_FAIL=429  quota or rate limit exhausted
+  //   MOCK_LLM_FAIL=500  provider-side fault (the client retries once)
+  if (FAIL) {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      calls += 1;
+      console.log(`[mock-llm] #${calls} simulated HTTP ${FAIL}`);
+      res.writeHead(FAIL, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: {
+            code: FAIL,
+            message:
+              FAIL === 401
+                ? "API key not valid. Please pass a valid API key. key=AIzaSyFAKEKEYFORTESTING123456789"
+                : FAIL === 429
+                  ? "Quota exceeded for quota metric 'Generate requests' — free tier limit reached."
+                  : "Internal error encountered.",
+            status: FAIL === 401 ? "INVALID_ARGUMENT" : FAIL === 429 ? "RESOURCE_EXHAUSTED" : "INTERNAL",
+          },
+        })
+      );
+    });
+    return;
+  }
+
   let raw = "";
   req.on("data", (chunk) => (raw += chunk));
   req.on("end", () => {
@@ -181,4 +212,5 @@ const server = createServer((req, res) => {
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`[mock-llm] OpenAI-compatible endpoint on http://0.0.0.0:${PORT}/v1`);
   console.log(`[mock-llm] messy replies: ${MESSY ? "on" : "off"}`);
+  if (FAIL) console.log(`[mock-llm] every reply fails with HTTP ${FAIL}`);
 });

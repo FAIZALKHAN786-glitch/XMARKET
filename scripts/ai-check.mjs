@@ -6,6 +6,12 @@
  *
  *   npm run dev          # in one terminal
  *   npm run ai:check     # in another
+ *   npm run ai:check -- --json   # machine-readable, for CI
+ *
+ * The first thing it does is probe the provider with a real request. A key
+ * that is present but rejected — wrong, revoked, out of quota — is reported as
+ * a failure here, which is the whole point: otherwise every capability below
+ * would quietly report itself as working.
  */
 
 const BASE = process.env.BASE_URL ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`;
@@ -16,6 +22,9 @@ const YELLOW = "\x1b[33m";
 const RED = "\x1b[31m";
 
 let failures = 0;
+let probeFailed = false;
+const results = [];
+const JSON_OUT = process.argv.includes("--json");
 
 async function call(path, init) {
   const response = await fetch(`${BASE}${path}`, {
@@ -30,6 +39,15 @@ async function call(path, init) {
 }
 
 function report(name, data, summarise) {
+  results.push({
+    capability: name.trim().split(/\s{2,}/)[0],
+    mode: data.meta?.mode ?? "unknown",
+    provider: data.meta?.provider ?? null,
+    model: data.meta?.model ?? null,
+    latencyMs: data.meta?.latencyMs ?? null,
+    cached: Boolean(data.meta?.cached),
+    note: data.meta?.note ?? null,
+  });
   const mode = data.meta?.mode ?? "unknown";
   const tag =
     mode === "llm"
@@ -68,9 +86,59 @@ async function main() {
       `  note     : ${DIM}${status.note}${OFF}\n`
   );
 
-  // Pick a requirement that actually has offers for the scoring and summary tests.
+  // Probe first: "a key is configured" is not "the key works".
+  if (status.live) {
+    process.stdout.write(`  probing ${status.provider}… `);
+    try {
+      const probed = await call("/api/ai/status?probe=1");
+      const probe = probed.probe;
+      if (probe?.ok) {
+        console.log(`${GREEN}ok${OFF} ${DIM}(${probe.latencyMs}ms)${OFF}\n`);
+        results.push({ capability: "provider-probe", mode: "llm", ok: true });
+      } else {
+        console.log(`${RED}FAILED${OFF}\n`);
+        console.log(`  ${RED}The provider rejected the request.${OFF}`);
+        console.log(`  ${probe?.detail ?? "No detail returned."}\n`);
+        console.log(
+          probe?.code === "rate_limited"
+            ? `  ${YELLOW}This is a quota limit, not a bad key. Free tiers reset on a rolling window — try again later, or switch model.${OFF}\n`
+            : probe?.code === "auth"
+              ? `  ${YELLOW}Check the key is copied whole, is enabled for the Generative Language API, and has no IP restriction.${OFF}\n`
+              : ""
+        );
+        failures += 1;
+        probeFailed = true;
+        results.push({
+          capability: "provider-probe",
+          mode: "failed",
+          ok: false,
+          code: probe?.code ?? null,
+          detail: probe?.detail ?? null,
+        });
+      }
+    } catch (error) {
+      console.log(`${RED}FAILED${OFF}\n  ${error.message}\n`);
+      failures += 1;
+      results.push({ capability: "provider-probe", mode: "failed", ok: false });
+    }
+  }
+
+  // Pick a requirement that actually has offers for the scoring and summary
+  // tests. On an empty store there may be none, so bail out clearly rather
+  // than reporting four failures that are really one missing fixture.
   const feed = await call("/api/requirements?sort=offers&limit=1");
   const requirement = feed.requirements[0];
+  const offerCount = requirement?.offerCount ?? 0;
+  if (!requirement || offerCount === 0) {
+    console.log(
+      `${YELLOW}No requirement with offers found.${OFF}\n` +
+        `The scoring and summary checks need one. Import or post something first:\n` +
+        `  ${DIM}npm run data:import -- --source=sample${OFF}\n` +
+        `  ${DIM}POST /api/admin/reset?scope=data${OFF} restores the demo dataset.\n`
+    );
+    process.exit(failures > 0 ? 1 : 0);
+  }
+  console.log(`  using requirement: ${DIM}${requirement.title.slice(0, 60)} (${offerCount} offers)${OFF}\n`);
 
   const steps = [
     {
@@ -133,6 +201,15 @@ async function main() {
     });
   }
 
+  if (probeFailed) {
+    console.log(
+      `  ${RED}${"-".repeat(64)}${OFF}\n` +
+        `  ${RED}The provider is not answering, so read the results below carefully.${OFF}\n` +
+        `  ${DIM}Anything marked "cached" is a reply stored from an earlier run — it proves\n` +
+        `  the wiring works when a model IS reachable, not that your current key does.${OFF}\n`
+    );
+  }
+
   for (const step of steps) {
     try {
       const data = await step.run();
@@ -144,10 +221,36 @@ async function main() {
     }
   }
 
+  if (probeFailed) {
+    console.log(
+      `${RED}RESULT: the provider rejected the request — see the probe output above.${OFF}\n` +
+        `${DIM}Common causes: the key is wrong or revoked, the Generative Language API is not\n` +
+        `enabled for the project, billing/quota is exhausted, or the key has an IP restriction.${OFF}\n`
+    );
+  }
+
   if (!status.live) {
     console.log(
       `${YELLOW}No model is configured, so every result above came from the heuristic engine.${OFF}\n` +
-        `Add a key to ${DIM}.env.local${OFF} (see ${DIM}.env.example${OFF}) and restart the server to use a model.\n`
+        `Add a key to ${DIM}.env.local${OFF} (see ${DIM}.env.example${OFF}) and restart the server to use a model.\n` +
+        `${DIM}Free option: GEMINI_API_KEY from https://aistudio.google.com/apikey${OFF}\n`
+    );
+  }
+
+  if (JSON_OUT) {
+    console.log(
+      JSON.stringify(
+        {
+          base: BASE,
+          provider: status.provider,
+          model: status.model,
+          live: status.live,
+          failures,
+          results,
+        },
+        null,
+        2
+      )
     );
   }
 

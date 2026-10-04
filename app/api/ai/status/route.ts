@@ -1,15 +1,35 @@
-import { ok, route } from "@/lib/server/http";
-import { status } from "@/lib/server/llm";
+import { ok, readQuery, route } from "@/lib/server/http";
+import { health, status } from "@/lib/server/llm";
 import { listEvents } from "@/lib/server/repo";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/ai/status — which provider is answering, and a recent activity trace. */
-export const GET = route(async () => {
+const statusQuery = z.object({
+  /**
+   * Probe the provider with a real request. Off by default so that merely
+   * looking at the status chip never spends quota.
+   */
+  probe: z
+    .enum(["0", "1", "true", "false"])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
+});
+
+/**
+ * GET /api/ai/status — which provider is answering, and a recent activity trace.
+ * `?probe=1` additionally calls the provider so a broken key is reported as
+ * broken instead of merely "configured".
+ */
+export const GET = route(async (request: Request) => {
+  const query = readQuery(request, statusQuery);
   const events = await listEvents(40);
+  const probe = query.probe ? await health() : undefined;
+
   return ok({
     ...status(),
+    ...(probe ? { probe } : {}),
     capabilities: [
       {
         id: "parse-requirement",

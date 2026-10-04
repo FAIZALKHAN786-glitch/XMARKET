@@ -42,6 +42,43 @@ export const requirementCreate = requirementInput.refine(
   { message: "budgetTarget cannot exceed budgetMax", path: ["budgetTarget"] }
 );
 
+/* --------------------------------------------------------------- importing */
+
+export const sourceRef = z.object({
+  name: z.string().trim().min(2).max(80),
+  url: z.string().trim().url().max(500),
+  ref: z.string().trim().max(200).optional(),
+  importedAt: z.string().trim().min(4).max(40),
+});
+
+/**
+ * An imported requirement. Looser than `requirementInput` on purpose: real
+ * notices carry whatever the publisher wrote, and rejecting a whole batch
+ * because one buyer typed a two-word title would be worse than importing it.
+ * Everything the engine needs to score an offer is still required.
+ */
+export const importedRequirement = z.object({
+  title: z.string().trim().min(4).max(160),
+  summary: z.string().trim().min(10).max(240),
+  description: z.string().trim().min(10).max(8000),
+  category: categoryId,
+  /** Organisation name from the source; the route creates the buyer record. */
+  buyerName: z.string().trim().min(2).max(120),
+  budgetMax: z.number().int().positive().max(100_000_000),
+  budgetTarget: z.number().int().positive().max(100_000_000),
+  deadline: z.coerce.date(),
+  closesAt: z.coerce.date(),
+  location: z.string().trim().min(1).max(120),
+  tags: z.array(z.string().trim().min(1).max(64)).min(1).max(12),
+  mustHaves: z.array(z.string().trim().min(1).max(200)).max(12).default([]),
+  source: sourceRef,
+});
+
+export const importInput = z.object({
+  requirements: z.array(importedRequirement).min(1).max(500),
+  dryRun: z.boolean().default(false),
+});
+
 export const milestoneInput = z.object({
   label: z.string().trim().min(2).max(120),
   days: z.number().int().min(1).max(3650),

@@ -36,10 +36,22 @@ export interface AiMeta {
   note?: string;
 }
 
+export interface AiProbe {
+  ok: boolean;
+  provider: string;
+  model: string;
+  latencyMs?: number;
+  detail?: string;
+  code?: string;
+  cached?: boolean;
+}
+
 export interface AiStatus extends AiMeta {
   live: boolean;
   capabilities: { id: string; label: string; endpoint: string }[];
   recent: AuditEvent[];
+  /** Present only when the caller asked for a live probe. */
+  probe?: AiProbe;
 }
 
 export interface AuditEvent {
@@ -258,7 +270,8 @@ export const api = {
     ),
 
   ai: {
-    status: () => request<AiStatus>("/api/ai/status"),
+    status: (options: { probe?: boolean } = {}) =>
+      request<AiStatus>(`/api/ai/status${options.probe ? "?probe=1" : ""}`),
 
     parseRequirement: (brief: string, defaults?: { category?: string; location?: string }) =>
       request<{ draft: ParsedDraft; meta: AiMeta }>(

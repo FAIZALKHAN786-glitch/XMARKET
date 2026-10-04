@@ -70,6 +70,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
     setBidStatus,
     meBuyerId,
     pushToast,
+    synced,
   } = useStore();
 
   const requirement = requirements.find((r) => r.id === requirementId);
@@ -97,6 +98,14 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
       setAiFor(null);
     }
   }, [aiRows, aiFor, blendKey]);
+
+  if (!requirement && !synced) {
+    return (
+      <div className="frame pt-10 pb-16">
+        <div className="surface h-72 animate-pulse-soft" />
+      </div>
+    );
+  }
 
   if (!requirement) {
     return (
