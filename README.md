@@ -53,8 +53,6 @@ $$\text{Compatibility Score} = w_1(\text{Budget}) + w_2(\text{Timeline}) + w_3(\
 - **Database:** PostgreSQL / MongoDB
 - **Authentication:** JWT / Firebase Auth / NextAuth
 
-*(Adjust according to your actual stack)*
-
 ---
 
 ## 🔄 How It Works (Workflow)
