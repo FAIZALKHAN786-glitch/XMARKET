@@ -1,0 +1,887 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CalendarClock,
+  Check,
+  Crown,
+  Download,
+  Minus,
+  Printer,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Target,
+  Timer,
+  TrendingDown,
+  Trophy,
+  Wallet,
+  Layers,
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/cn";
+import { CATEGORIES } from "@/lib/data";
+import { rankBids, scoreToken } from "@/lib/engine";
+import { dateLabel, usd } from "@/lib/format";
+import { useStore } from "@/lib/store";
+import type { Bid, Provider, Requirement, Score, Weights } from "@/lib/types";
+import { MilestoneRail } from "./bid-card";
+import { CategoryMark } from "./icons";
+import { WeightsPanel } from "./weights-panel";
+import {
+  Avatar,
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  Progress,
+  Rating,
+  StatusBadge,
+} from "./ui/primitives";
+import { ScoreBreakdown, ScorePill, ScoreRing } from "./ui/score";
+import { Modal } from "./ui/overlay";
+
+type Row = {
+  bid: Bid;
+  provider?: Provider;
+  score: Score;
+};
+
+export function CompareWorkspace({ requirementId }: { requirementId: string }) {
+  const {
+    requirements,
+    bids,
+    providers,
+    weights,
+    setBidStatus,
+    meBuyerId,
+  } = useStore();
+
+  const requirement = requirements.find((r) => r.id === requirementId);
+  const [excluded, setExcluded] = React.useState<string[]>([]);
+  const [detail, setDetail] = React.useState<Row | null>(null);
+  const [awardOpen, setAwardOpen] = React.useState(false);
+  const [awarded, setAwarded] = React.useState<string | null>(null);
+
+  if (!requirement) {
+    return (
+      <div className="frame pt-16 pb-24">
+        <EmptyState
+          icon={<Layers className="size-5" />}
+          title="Requirement not found"
+          body="This requirement may have been withdrawn."
+          action={
+            <ButtonLink href="/compare" variant="outline">
+              Back to comparison
+            </ButtonLink>
+          }
+        />
+      </div>
+    );
+  }
+
+  const ranked = rankBids(
+    bids.filter((b) => b.requirementId === requirement.id),
+    requirement,
+    providers,
+    weights
+  ).filter((r) => !excluded.includes(r.bid.id));
+
+  const isOwner = requirement.buyerId === meBuyerId;
+  const category = CATEGORIES.find((c) => c.id === requirement.category)!;
+
+  if (ranked.length === 0) {
+    return (
+      <div className="frame pt-10 pb-16">
+        <BackLink />
+        <div className="mt-8">
+          <EmptyState
+            icon={<Target className="size-5" />}
+            title="No offers to compare"
+            body="Providers matched to this requirement have been notified. Offers appear here the moment they land."
+            action={
+              <ButtonLink href={`/market/${requirement.id}`} variant="outline">
+                View requirement
+              </ButtonLink>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const best = ranked[0];
+  const cheapest = [...ranked].sort((a, b) => a.bid.price - b.bid.price)[0];
+  const fastest = [...ranked].sort(
+    (a, b) => a.bid.deliveryDays - b.bid.deliveryDays
+  )[0];
+  const columns = ranked;
+
+  return (
+    <div className="frame pt-8 pb-16 md:pt-10">
+      <BackLink />
+
+      {/* ------------------------------------------------------ header */}
+      <div className="mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex items-start gap-4">
+          <CategoryMark category={requirement.category} size={46} />
+          <div>
+            <p className="text-[0.6875rem] font-bold tracking-[0.2em] text-[var(--color-iris-300)] uppercase">
+              Comparison workspace
+            </p>
+            <h1 className="mt-1.5 text-[1.5rem] leading-tight font-semibold text-white md:text-[1.875rem]">
+              {requirement.title}
+            </h1>
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[0.8125rem] faint">
+              <span>{category.label}</span>
+              <span className="num">
+                ceiling {usd(requirement.budgetMax)}
+              </span>
+              <span className="num">
+                needed by {dateLabel(requirement.deadline)}
+              </span>
+              <StatusBadge status={requirement.status} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="size-4" />
+            Print / PDF
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              const csv = [
+                [
+                  "provider",
+                  "price",
+                  "delivery_days",
+                  "score",
+                  ...weightsCells(weights),
+                ].join(","),
+                ...ranked.map((r) =>
+                  [
+                    `"${r.provider?.name ?? ""}"`,
+                    r.bid.price,
+                    r.bid.deliveryDays,
+                    r.score.total,
+                    ...r.score.factors.map((f) => f.score),
+                  ].join(",")
+                ),
+              ].join("\n");
+              const url = URL.createObjectURL(
+                new Blob([csv], { type: "text/csv" })
+              );
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${requirement.id}-offers.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            <Download className="size-4" />
+            Export CSV
+          </Button>
+          <Button onClick={() => setAwardOpen(true)}>
+            <Trophy className="size-4" />
+            Award {best.provider?.name?.split(" ")[0]}
+          </Button>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------- award banner */}
+      {awarded && (
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-[color-mix(in_oklab,var(--color-score-high)_35%,transparent)] bg-[color-mix(in_oklab,var(--color-score-high)_10%,transparent)] p-4">
+          <span className="grid size-9 place-items-center rounded-xl bg-[color-mix(in_oklab,var(--color-score-high)_20%,transparent)] text-[var(--color-score-high)]">
+            <Check className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.875rem] font-semibold text-white">
+              Offer accepted — {awarded}
+            </p>
+            <p className="text-xs text-white/70">
+              Remaining proposals have been moved to declined. Work starts on
+              the agreed milestones.
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setAwarded(null)}>
+            Undo
+          </Button>
+        </div>
+      )}
+
+      {/* ------------------------------------------------- top summary */}
+      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid gap-px overflow-hidden rounded-2xl border border-white/8 bg-white/8 sm:grid-cols-3">
+          <Highlight
+            icon={<Crown className="size-4" />}
+            label="Best compatibility"
+            value={`${best.score.total} · ${best.score.grade}`}
+            body={best.provider?.name ?? ""}
+            tone="iris"
+          />
+          <Highlight
+            icon={<TrendingDown className="size-4" />}
+            label="Lowest price"
+            value={usd(cheapest.bid.price)}
+            body={`${Math.round(
+              (1 - cheapest.bid.price / requirement.budgetMax) * 100
+            )}% under ceiling · ${cheapest.provider?.name}`}
+            tone="good"
+          />
+          <Highlight
+            icon={<Timer className="size-4" />}
+            label="Fastest delivery"
+            value={`${fastest.bid.deliveryDays} days`}
+            body={`${fastest.provider?.name} — score ${fastest.score.total}`}
+            tone="aqua"
+          />
+        </div>
+
+        <WeightsPanel />
+      </div>
+
+      {/* ------------------------------------------------- matrix */}
+      <section className="mt-8">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-[1.0625rem] font-semibold text-white">
+              Offer matrix
+            </h2>
+            <p className="mt-1 text-[0.8125rem] muted">
+              {columns.length} offers compared across 9 decision factors. Scroll
+              horizontally on small screens.
+            </p>
+          </div>
+          {excluded.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setExcluded([])}
+            >
+              Restore {excluded.length} hidden offer
+              {excluded.length === 1 ? "" : "s"}
+            </Button>
+          )}
+        </div>
+
+        <div className="surface mt-5 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[52rem] border-collapse text-left">
+              <thead>
+                <tr>
+                  <th
+                    scope="col"
+                    className="sticky left-0 z-10 w-44 border-b border-white/8 bg-ink-850 p-4 align-bottom"
+                  >
+                    <span className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
+                      Factor
+                    </span>
+                  </th>
+                  {columns.map((row, i) => (
+                    <th
+                      key={row.bid.id}
+                      scope="col"
+                      className={cn(
+                        "min-w-[13rem] border-b border-l border-white/8 p-4 align-top",
+                        i === 0 && "bg-[color-mix(in_oklab,var(--color-iris-500)_10%,transparent)]"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar
+                            initials={row.provider?.initials ?? "??"}
+                            size={34}
+                            seed={(row.provider?.name.length ?? 2) + i}
+                          />
+                          <div>
+                            <p className="flex items-center gap-1 text-[0.8125rem] font-semibold text-white">
+                              {row.provider?.name}
+                              {row.provider?.verified && (
+                                <BadgeCheck className="size-3.5 text-[var(--color-aqua-400)]" />
+                              )}
+                            </p>
+                            <p className="text-[0.6875rem] faint">
+                              {row.provider?.location}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setExcluded((prev) => [...prev, row.bid.id])
+                          }
+                          aria-label={`Hide ${row.provider?.name}`}
+                          className="grid size-6 place-items-center rounded-md text-white/30 transition hover:bg-white/8 hover:text-white"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                      {i === 0 && (
+                        <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklab,var(--color-score-mid)_40%,transparent)] bg-[color-mix(in_oklab,var(--color-score-mid)_12%,transparent)] px-2 py-0.5 text-[0.625rem] font-semibold text-[var(--color-score-mid)]">
+                          <Trophy className="size-3" /> Leading offer
+                        </span>
+                      )}
+                      <div className="mt-3 flex items-center gap-3">
+                        <ScoreRing score={row.score.total} size={54} stroke={5} />
+                        <div>
+                          <StatusBadge status={row.bid.status} />
+                          <p className="mt-1.5 text-[0.6875rem] faint">
+                            rank #{i + 1}
+                          </p>
+                        </div>
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                <MatrixRow
+                  label="Offer price"
+                  icon={<Wallet className="size-3.5" />}
+                  columns={columns}
+                  highlightIndex={columns.indexOf(cheapest)}
+                  render={(row) => (
+                    <span className="num text-base font-bold text-white">
+                      {usd(row.bid.price)}
+                    </span>
+                  )}
+                />
+                <MatrixRow
+                  label="vs. ceiling"
+                  columns={columns}
+                  highlightIndex={columns.indexOf(cheapest)}
+                  render={(row) => {
+                    const delta = requirement.budgetMax - row.bid.price;
+                    const over = delta < 0;
+                    const pct = Math.round((delta / requirement.budgetMax) * 100);
+                    return (
+                      <span className="flex flex-col gap-1.5">
+                        <span
+                          className={cn(
+                            "num inline-flex items-center gap-1 text-[0.8125rem] font-semibold",
+                            over
+                              ? "text-[var(--color-score-low)]"
+                              : "text-[var(--color-score-high)]"
+                          )}
+                        >
+                          {over ? "+" : "−"}
+                          {usd(Math.abs(delta))} ({over ? "+" : ""}
+                          {pct}%)
+                        </span>
+                        <Progress
+                          value={Math.min(
+                            100,
+                            (row.bid.price / requirement.budgetMax) * 100
+                          )}
+                          barClassName={cn(
+                            over
+                              ? "bg-[var(--color-score-low)]"
+                              : "bg-[var(--color-score-high)]"
+                          )}
+                        />
+                      </span>
+                    );
+                  }}
+                />
+                <MatrixRow
+                  label="Delivery time"
+                  icon={<CalendarClock className="size-3.5" />}
+                  columns={columns}
+                  highlightIndex={columns.indexOf(fastest)}
+                  render={(row) => {
+                    const available = Math.max(
+                      1,
+                      Math.round(
+                        (+new Date(requirement.deadline) - Date.now()) /
+                          86_400_000
+                      )
+                    );
+                    const slack = available - row.bid.deliveryDays;
+                    return (
+                      <span className="flex flex-col gap-1">
+                        <span className="num text-[0.9375rem] font-semibold text-white">
+                          {row.bid.deliveryDays} days
+                        </span>
+                        <span
+                          className={cn(
+                            "num text-xs",
+                            slack < 0
+                              ? "text-[var(--color-score-low)]"
+                              : "text-[var(--color-score-high)]"
+                          )}
+                        >
+                          {slack < 0
+                            ? `${Math.abs(slack)} days late`
+                            : `${slack} days buffer`}
+                        </span>
+                      </span>
+                    );
+                  }}
+                />
+                <MatrixRow
+                  label="Budget fit"
+                  icon={<Target className="size-3.5" />}
+                  columns={columns}
+                  render={(row) => (
+                    <FactorCell
+                      factor={row.score.factors.find((f) => f.key === "budget")!}
+                    />
+                  )}
+                />
+                <MatrixRow
+                  label="Timeline match"
+                  columns={columns}
+                  render={(row) => (
+                    <FactorCell
+                      factor={row.score.factors.find((f) => f.key === "timeline")!}
+                    />
+                  )}
+                />
+                <MatrixRow
+                  label="Relevance"
+                  columns={columns}
+                  render={(row) => (
+                    <FactorCell
+                      factor={row.score.factors.find((f) => f.key === "relevance")!}
+                    />
+                  )}
+                />
+                <MatrixRow
+                  label="Tag coverage"
+                  columns={columns}
+                  render={(row) => {
+                    const covered = requirement.tags.filter((t) =>
+                      row.bid.coversTags.includes(t)
+                    ).length;
+                    const total = requirement.tags.length;
+                    const all = covered === total;
+                    return (
+                      <span className="flex flex-col gap-1.5">
+                        <span
+                          className={cn(
+                            "num text-[0.8125rem] font-semibold",
+                            all
+                              ? "text-[var(--color-score-high)]"
+                              : "text-[var(--color-score-mid)]"
+                          )}
+                        >
+                          {covered}/{total} tags
+                        </span>
+                        <div className="flex gap-1">
+                          {requirement.tags.map((t) => (
+                            <span
+                              key={t}
+                              title={t}
+                              className={cn(
+                                "h-1.5 flex-1 rounded-full",
+                                row.bid.coversTags.includes(t)
+                                  ? "bg-[var(--color-score-high)]"
+                                  : "bg-white/10"
+                              )}
+                            />
+                          ))}
+                        </div>
+                      </span>
+                    );
+                  }}
+                />
+                <MatrixRow
+                  label="Provider evidence"
+                  columns={columns}
+                  render={(row) => (
+                    <span className="flex flex-col gap-1 text-xs">
+                      <Rating
+                        value={row.provider?.rating ?? 0}
+                        count={row.provider?.reviews}
+                      />
+                      <span className="inline-flex items-center gap-1.5 faint">
+                        <ShieldCheck className="size-3" />
+                        {row.provider?.onTimeRate}% on time
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 faint">
+                        <Timer className="size-3" />
+                        replies in {row.provider?.responseHours}h
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 faint">
+                        <Star className="size-3" />
+                        {row.provider?.completedJobs} jobs since{" "}
+                        {row.provider?.memberSince}
+                      </span>
+                    </span>
+                  )}
+                />
+                <MatrixRow
+                  label="Milestone plan"
+                  columns={columns}
+                  render={(row) => (
+                    <MilestoneRail
+                      bid={row.bid}
+                      className="text-[0.6875rem] [&_span]:text-[0.75rem]"
+                    />
+                  )}
+                />
+                <MatrixRow
+                  label="Total compatibility"
+                  columns={columns}
+                  emphasis
+                  render={(row) => (
+                    <span className="flex items-center gap-3">
+                      <ScorePill score={row.score.total} />
+                      <span
+                        className={cn(
+                          "text-xs font-semibold",
+                          scoreToken(row.score.total).text
+                        )}
+                      >
+                        {row.score.grade}
+                      </span>
+                    </span>
+                  )}
+                />
+                <tr>
+                  <td className="sticky left-0 z-10 border-t border-white/8 bg-ink-850 p-4">
+                    <span className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
+                      Decision
+                    </span>
+                  </td>
+                  {columns.map((row) => (
+                    <td
+                      key={`d-${row.bid.id}`}
+                      className={cn(
+                        "border-t border-l border-white/8 p-4",
+                        row === best &&
+                          "bg-[color-mix(in_oklab,var(--color-iris-500)_8%,transparent)]"
+                      )}
+                    >
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setDetail(row)}
+                        >
+                          Inspect
+                        </Button>
+                        {row.bid.status !== "shortlisted" &&
+                          row.bid.status !== "accepted" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setBidStatus(row.bid.id, "shortlisted")
+                              }
+                            >
+                              <Sparkles className="size-3" />
+                              Shortlist
+                            </Button>
+                          )}
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setBidStatus(row.bid.id, "accepted");
+                            ranked
+                              .filter((r) => r.bid.id !== row.bid.id)
+                              .forEach((r) =>
+                                setBidStatus(r.bid.id, "rejected")
+                              );
+                            setAwarded(row.provider?.name ?? "Provider");
+                          }}
+                        >
+                          <Check className="size-3" />
+                          Award
+                        </Button>
+                        {isOwner && row.bid.status !== "rejected" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setBidStatus(row.bid.id, "rejected")}
+                          >
+                            Decline
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <p className="mt-3 flex items-center gap-2 text-xs faint">
+          <Minus className="size-3" />
+          Highlighted cells mark the best value in that row under your current
+          weighting. Change the sliders above to re-rank instantly.
+        </p>
+      </section>
+
+      {/* ---------------------------------------------- per-offer insights */}
+      <section className="mt-10">
+        <h2 className="text-[1.0625rem] font-semibold text-white">
+          Why each offer scored what it did
+        </h2>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {columns.map((row) => (
+            <Card key={row.bid.id}>
+              <div className="flex items-center gap-3">
+                <Avatar
+                  initials={row.provider?.initials ?? "??"}
+                  size={38}
+                  seed={(row.provider?.name.length ?? 3) + row.score.total}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[0.875rem] font-semibold text-white">
+                    {row.provider?.name}
+                  </p>
+                  <p className="num text-xs faint">
+                    {usd(row.bid.price)} · {row.bid.deliveryDays} days
+                  </p>
+                </div>
+                <ScoreRing score={row.score.total} size={46} stroke={4} />
+              </div>
+              <div className="mt-4">
+                <ScoreBreakdown score={row.score} compact />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* -------------------------------------------------------- modals */}
+      <Modal
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title="Offer detail"
+        description={detail?.provider?.name}
+        size="lg"
+      >
+        {detail && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-3 gap-3">
+              <Fact label="Price" value={usd(detail.bid.price)} />
+              <Fact
+                label="Delivery"
+                value={`${detail.bid.deliveryDays} days`}
+              />
+              <Fact label="Score" value={String(detail.score.total)} />
+            </div>
+            <ScoreBreakdown score={detail.score} />
+            <div>
+              <p className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
+                Pitch
+              </p>
+              <p className="mt-2 text-[0.8125rem] leading-relaxed text-white/80">
+                {detail.bid.pitch}
+              </p>
+            </div>
+            <div>
+              <p className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
+                Milestones
+              </p>
+              <MilestoneRail bid={detail.bid} className="mt-3" />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={awardOpen}
+        onClose={() => setAwardOpen(false)}
+        title="Accept this offer"
+        description={`${best.provider?.name} — ${usd(best.bid.price)} in ${best.bid.deliveryDays} days`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAwardOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setBidStatus(best.bid.id, "accepted");
+                ranked
+                  .filter((r) => r.bid.id !== best.bid.id)
+                  .forEach((r) => setBidStatus(r.bid.id, "rejected"));
+                setAwarded(best.provider?.name ?? "Provider");
+                setAwardOpen(false);
+              }}
+            >
+              <Trophy className="size-4" />
+              Accept & notify provider
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+            <ScoreRing score={best.score.total} size={64} stroke={6} />
+            <div>
+              <p className="text-[0.875rem] font-semibold text-white">
+                {best.score.grade} compatibility
+              </p>
+              <p className="mt-1 text-[0.8125rem] muted">
+                {best.score.strengths[0] ?? "Strong across all factors."}
+              </p>
+            </div>
+          </div>
+          <ul className="space-y-2.5">
+            {[
+              "The provider is notified and the deal enters the milestones timeline",
+              "All other proposals on this requirement are declined",
+              "Scope, price and schedule are frozen at the values shown",
+            ].map((t) => (
+              <li key={t} className="flex gap-2.5 text-[0.8125rem] text-white/80">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-score-high)]" />
+                {t}
+              </li>
+            ))}
+          </ul>
+          {best.score.risks.length > 0 && (
+            <div className="rounded-xl border border-[color-mix(in_oklab,var(--color-score-mid)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-score-mid)_8%,transparent)] p-3.5">
+              <p className="text-xs font-semibold text-[var(--color-score-mid)]">
+                Watch before you sign
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-white/75">
+                {best.score.risks[0]}
+              </p>
+            </div>
+          )}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ pieces */
+
+function BackLink() {
+  return (
+    <Link
+      href="/compare"
+      className="inline-flex items-center gap-1.5 text-[0.8125rem] text-white/55 transition hover:text-white"
+    >
+      <ArrowLeft className="size-3.5" />
+      All comparisons
+    </Link>
+  );
+}
+
+function weightsCells(weights: Weights) {
+  return [
+    weights.budget.toFixed(3),
+    weights.timeline.toFixed(3),
+    weights.relevance.toFixed(3),
+  ];
+}
+
+function MatrixRow({
+  label,
+  icon,
+  columns,
+  render,
+  highlightIndex,
+  emphasis,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  columns: Row[];
+  render: (row: Row) => React.ReactNode;
+  highlightIndex?: number;
+  emphasis?: boolean;
+}) {
+  return (
+    <tr className={cn(emphasis && "bg-white/[0.02]")}>
+      <th
+        scope="row"
+        className="sticky left-0 z-10 border-t border-white/8 bg-ink-850 p-4 text-left align-top"
+      >
+        <span className="flex items-center gap-1.5 text-[0.75rem] font-medium text-white/70">
+          {icon}
+          {label}
+        </span>
+      </th>
+      {columns.map((row, i) => (
+        <td
+          key={`${label}-${row.bid.id}`}
+          className={cn(
+            "border-t border-l border-white/8 p-4 align-top",
+            highlightIndex === i &&
+              "bg-[color-mix(in_oklab,var(--color-aqua-400)_8%,transparent)]"
+          )}
+        >
+          {render(row)}
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+function FactorCell({
+  factor,
+}: {
+  factor: Score["factors"][number];
+}) {
+  const token = scoreToken(factor.score);
+  return (
+    <span className="flex flex-col gap-1.5">
+      <span className="flex items-baseline gap-2">
+        <span className={cn("num text-[0.9375rem] font-bold", token.text)}>
+          {factor.score}
+        </span>
+        <span className="num text-[0.6875rem] faint">
+          ×{factor.weight.toFixed(2)}
+        </span>
+      </span>
+      <Progress value={factor.score} barClassName={token.bg} />
+      <span className="text-[0.6875rem] leading-relaxed faint">
+        {factor.detail}
+      </span>
+    </span>
+  );
+}
+
+function Highlight({
+  icon,
+  label,
+  value,
+  body,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  body: string;
+  tone: "iris" | "good" | "aqua";
+}) {
+  const tones = {
+    iris: "text-[var(--color-iris-300)]",
+    good: "text-[var(--color-score-high)]",
+    aqua: "text-[var(--color-aqua-300)]",
+  };
+  return (
+    <div className="bg-ink-850 p-4">
+      <p className="flex items-center gap-1.5 text-[0.625rem] font-semibold tracking-[0.12em] faint uppercase">
+        <span className={tones[tone]}>{icon}</span>
+        {label}
+      </p>
+      <p className="num mt-2 text-lg font-bold text-white">{value}</p>
+      <p className="mt-0.5 truncate text-xs faint">{body}</p>
+    </div>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+      <p className="text-[0.625rem] font-semibold tracking-[0.12em] faint uppercase">
+        {label}
+      </p>
+      <p className="num mt-1 text-[0.9375rem] font-semibold text-white">
+        {value}
+      </p>
+    </div>
+  );
+}
