@@ -15,7 +15,7 @@ A needs-first reverse marketplace where buyers post custom requirements (budget,
 Traditional online marketplaces force users to browse through hundreds of irrelevant listings to find products or services matching their needs. This process is time-consuming, inefficient, and often fails when buyers have strict budgets, tight deadlines, or unique specifications.
 
 ## 💡 Solution
-**ReverseMarket** is a reverse-bidding and procurement ecosystem designed to put the buyer's needs first:
+**XMARKET** is a reverse-bidding and procurement ecosystem designed to put the buyer's needs first:
 1. **Buyers** post detailed requirements (specifications, category, max budget, deadline).
 2. **Providers** submit targeted bids and proposals.
 3. **The Matching Engine** scores each proposal based on compatibility (budget alignment, delivery speed, and relevance).
