@@ -65,3 +65,36 @@ graph TD
     D --> E[Comparison Dashboard Displays Ranked Offers]
     E --> F[Buyer Shortlists & Accepts Best Offer]
     F --> G[Deal Finalized / Work Begins]
+
+---
+
+## 🖥️ Frontend (Implemented)
+
+The design directive ships as a complete Next.js 14 (App Router) frontend:
+
+| Route | Page |
+|---|---|
+| `/` (and `/login`) | **Login** — split editorial layout, atmospheric left panel, auth form right |
+| `/dashboard` | **Requirement Posting** — command input, autocomplete, AI extraction panel, requirement builder |
+| `/matches` | **Match Results** — ranked offer grid, why-this-match, shortlist + comparison sidebar |
+| `/provider` | **Provider Dashboard** — sidebar nav, requirements feed, submit-offer modal, offers table |
+
+### Stack
+- Next.js 14 · React 18 · Lucide icons
+- Monochrome glassmorphism design system in `app/globals.css`
+- Mock API layer in `lib/api.js` with `// TODO` markers mapping every call to its real endpoint contract
+
+### Run locally
+```bash
+npm install
+npm run dev     # http://localhost:3000
+```
+
+### Backend integration
+All data flows through `lib/api.js`. Swap the mock implementations for the
+documented endpoints (see the endpoint map at the top of that file) and set:
+
+```
+NEXT_PUBLIC_API_URL=…   GEMINI_API_KEY=…   GROQ_API_KEY=…
+NEXTAUTH_SECRET=…       GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=…
+```

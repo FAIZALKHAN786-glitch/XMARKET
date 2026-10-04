@@ -1,0 +1,18 @@
+{
+  "name": "xmarket",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Xmarket — reverse e-commerce marketplace. Buyers post needs, providers compete.",
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "lucide-react": "0.294.0",
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}
