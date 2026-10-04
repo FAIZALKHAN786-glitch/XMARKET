@@ -19,7 +19,7 @@ export function Logo({
       aria-label="XMARKET home"
     >
       <span
-        className="relative grid shrink-0 place-items-center rounded-[0.7rem] bg-gradient-to-br from-[var(--color-iris-500)] to-[var(--color-aqua-500)] shadow-[0_10px_28px_-14px_rgba(109,93,246,1)]"
+        className="relative grid shrink-0 place-items-center rounded-lg bg-white"
         style={{ width: size, height: size }}
       >
         <svg
@@ -27,8 +27,8 @@ export function Logo({
           width={size * 0.6}
           height={size * 0.6}
           fill="none"
-          stroke="#05060b"
-          strokeWidth="2.4"
+          stroke="#000000"
+          strokeWidth="2.2"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden
@@ -39,7 +39,7 @@ export function Logo({
         </svg>
       </span>
       {withWordmark && (
-        <span className="text-[0.9375rem] font-bold tracking-[0.14em] text-white">
+        <span className="text-[0.9375rem] font-semibold tracking-[0.18em] text-white">
           XMARKET
         </span>
       )}

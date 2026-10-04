@@ -104,7 +104,7 @@ export function BidComposer({
   if (submitted) {
     return (
       <div className="surface p-6 text-center">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[color-mix(in_oklab,var(--color-score-high)_16%,transparent)] text-[var(--color-score-high)]">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-white/10 text-white">
           <Check className="size-6" />
         </span>
         <h3 className="mt-4 font-semibold text-white">
@@ -123,7 +123,7 @@ export function BidComposer({
     <div className="space-y-5">
       {/* live score preview */}
       <div className="surface overflow-hidden">
-        <div className="flex items-center gap-5 border-b border-white/8 bg-white/[0.02] p-5">
+        <div className="flex items-center gap-5 border-b border-white/10 bg-white/[0.02] p-5">
           <ScoreRing score={score.total} size={78} stroke={7} />
           <div className="min-w-0">
             <p className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
@@ -200,10 +200,10 @@ export function BidComposer({
             value={Math.min(140, (price / requirement.budgetMax) * 100)}
             barClassName={cn(
               price <= requirement.budgetTarget
-                ? "bg-[var(--color-score-high)]"
+                ? "bg-white"
                 : price <= requirement.budgetMax
-                  ? "bg-[var(--color-score-mid)]"
-                  : "bg-[var(--color-score-low)]"
+                  ? "bg-white/55"
+                  : "bg-white/30"
             )}
           />
           <div className="mt-1.5 flex justify-between text-[0.6875rem] faint">
@@ -239,7 +239,7 @@ export function BidComposer({
                   className={cn(
                     "chip transition",
                     on
-                      ? "border-[var(--color-score-high)]/40 bg-[color-mix(in_oklab,var(--color-score-high)_12%,transparent)] text-[var(--color-score-high)]"
+                      ? "border-white/45/40 bg-white/10 text-white"
                       : "text-white/55 hover:border-white/25 hover:text-white"
                   )}
                 >
@@ -274,7 +274,7 @@ export function BidComposer({
         <div className="space-y-2">
           {milestones.map((m, i) => (
             <div key={i} className="flex items-center gap-2">
-              <span className="num grid size-6 shrink-0 place-items-center rounded-md bg-white/6 text-[0.6875rem] text-white/60">
+              <span className="num grid size-6 shrink-0 place-items-center rounded-md bg-white/5 text-[0.6875rem] text-white/60">
                 {i + 1}
               </span>
               <input
@@ -308,9 +308,9 @@ export function BidComposer({
           ))}
         </div>
 
-        <div className="mt-5 rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
+        <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
           <p className="flex items-center gap-1.5 text-[0.75rem] font-medium text-white/80">
-            <Info className="size-3.5 text-[var(--color-iris-300)]" />
+            <Info className="size-3.5 text-white/75" />
             Milestones auto-fill evenly if left blank
           </p>
           <p className="mt-1 text-xs muted">
@@ -319,11 +319,11 @@ export function BidComposer({
         </div>
 
         {touched && errors.length > 0 && (
-          <ul className="mt-5 space-y-2 rounded-xl border border-[color-mix(in_oklab,var(--color-score-low)_35%,transparent)] bg-[color-mix(in_oklab,var(--color-score-low)_8%,transparent)] p-3.5">
+          <ul className="mt-5 space-y-2 rounded-xl border border-white/15 bg-white/5 p-3.5">
             {errors.map((e) => (
               <li
                 key={e}
-                className="flex gap-2 text-[0.8125rem] text-[var(--color-score-low)]"
+                className="flex gap-2 text-[0.8125rem] text-white/45"
               >
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 {e}

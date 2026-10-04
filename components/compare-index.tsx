@@ -55,7 +55,7 @@ export function CompareIndex() {
           <h2 className="text-[1.0625rem] font-semibold text-white">
             Your requirements
           </h2>
-          <Badge tone="iris">{mine.length} with offers</Badge>
+          <Badge tone="outline">{mine.length} with offers</Badge>
         </div>
 
         {mine.length === 0 ? (
@@ -127,7 +127,7 @@ function CompareTile({
         <div className="min-w-0 flex-1">
           <Link
             href={`/compare/${requirement.id}`}
-            className="text-[0.9375rem] leading-snug font-semibold text-white hover:text-[var(--color-iris-300)]"
+            className="text-[0.9375rem] leading-snug font-semibold text-white hover:text-white/75"
           >
             {requirement.title}
           </Link>
@@ -138,8 +138,8 @@ function CompareTile({
         <StatusBadge status={requirement.status} />
       </div>
 
-      <div className="mt-4 flex items-center gap-4 rounded-xl border border-white/8 bg-white/[0.02] p-3">
-        <Trophy className="size-4 shrink-0 text-[var(--color-score-mid)]" />
+      <div className="mt-4 flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+        <Trophy className="size-4 shrink-0 text-white/75" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[0.8125rem] font-medium text-white">
             {best.provider?.name}
@@ -151,14 +151,14 @@ function CompareTile({
         <ScorePill score={best.score.total} size="sm" />
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t border-white/8 pt-4">
+      <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
         <span className="inline-flex items-center gap-1.5 text-xs faint">
           <Users className="size-3.5" />
           {ranked.length} offers{spread > 0 && <> · {usd(spread, { compact: true })} spread</>}
         </span>
         <Link
           href={`/compare/${requirement.id}`}
-          className="inline-flex items-center gap-1 text-[0.8125rem] font-medium text-[var(--color-iris-300)] transition hover:gap-1.5 hover:text-white"
+          className="inline-flex items-center gap-1 text-[0.8125rem] font-medium text-white/75 transition hover:gap-1.5 hover:text-white"
         >
           Open workspace
           <ArrowRight className="size-3.5" />

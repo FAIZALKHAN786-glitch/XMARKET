@@ -29,6 +29,7 @@ import { dateLabel, usd } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { Bid, Provider, Requirement, Score, Weights } from "@/lib/types";
 import { MilestoneRail } from "./bid-card";
+import type { Tone } from "./ui/primitives";
 import { CategoryMark } from "./icons";
 import { WeightsPanel } from "./weights-panel";
 import {
@@ -129,7 +130,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
         <div className="flex items-start gap-4">
           <CategoryMark category={requirement.category} size={46} />
           <div>
-            <p className="text-[0.6875rem] font-bold tracking-[0.2em] text-[var(--color-iris-300)] uppercase">
+            <p className="text-[0.6875rem] font-bold tracking-[0.2em] text-white/75 uppercase">
               Comparison workspace
             </p>
             <h1 className="mt-1.5 text-[1.5rem] leading-tight font-semibold text-white md:text-[1.875rem]">
@@ -196,8 +197,8 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
 
       {/* ------------------------------------------------- award banner */}
       {awarded && (
-        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-[color-mix(in_oklab,var(--color-score-high)_35%,transparent)] bg-[color-mix(in_oklab,var(--color-score-high)_10%,transparent)] p-4">
-          <span className="grid size-9 place-items-center rounded-xl bg-[color-mix(in_oklab,var(--color-score-high)_20%,transparent)] text-[var(--color-score-high)]">
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-white/40 bg-white/10 p-4">
+          <span className="grid size-9 place-items-center rounded-xl bg-white/10 text-white">
             <Check className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
@@ -217,13 +218,13 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
 
       {/* ------------------------------------------------- top summary */}
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="grid gap-px overflow-hidden rounded-2xl border border-white/8 bg-white/8 sm:grid-cols-3">
+        <div className="grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:grid-cols-3">
           <Highlight
             icon={<Crown className="size-4" />}
             label="Best compatibility"
             value={`${best.score.total} · ${best.score.grade}`}
             body={best.provider?.name ?? ""}
-            tone="iris"
+            tone="outline"
           />
           <Highlight
             icon={<TrendingDown className="size-4" />}
@@ -239,7 +240,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
             label="Fastest delivery"
             value={`${fastest.bid.deliveryDays} days`}
             body={`${fastest.provider?.name} — score ${fastest.score.total}`}
-            tone="aqua"
+            tone="muted"
           />
         </div>
 
@@ -277,7 +278,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                 <tr>
                   <th
                     scope="col"
-                    className="sticky left-0 z-10 w-44 border-b border-white/8 bg-ink-850 p-4 align-bottom"
+                    className="sticky left-0 z-10 w-44 border-b border-white/10 bg-ink-900 p-4 align-bottom"
                   >
                     <span className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
                       Factor
@@ -288,8 +289,8 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                       key={row.bid.id}
                       scope="col"
                       className={cn(
-                        "min-w-[13rem] border-b border-l border-white/8 p-4 align-top",
-                        i === 0 && "bg-[color-mix(in_oklab,var(--color-iris-500)_10%,transparent)]"
+                        "min-w-[13rem] border-b border-l border-white/10 p-4 align-top",
+                        i === 0 && "bg-white/5"
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -303,7 +304,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                             <p className="flex items-center gap-1 text-[0.8125rem] font-semibold text-white">
                               {row.provider?.name}
                               {row.provider?.verified && (
-                                <BadgeCheck className="size-3.5 text-[var(--color-aqua-400)]" />
+                                <BadgeCheck className="size-3.5 text-white/60" />
                               )}
                             </p>
                             <p className="text-[0.6875rem] faint">
@@ -316,13 +317,13 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                             setExcluded((prev) => [...prev, row.bid.id])
                           }
                           aria-label={`Hide ${row.provider?.name}`}
-                          className="grid size-6 place-items-center rounded-md text-white/30 transition hover:bg-white/8 hover:text-white"
+                          className="grid size-6 place-items-center rounded-md text-white/30 transition hover:bg-white/5 hover:text-white"
                         >
                           <X className="size-3.5" />
                         </button>
                       </div>
                       {i === 0 && (
-                        <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklab,var(--color-score-mid)_40%,transparent)] bg-[color-mix(in_oklab,var(--color-score-mid)_12%,transparent)] px-2 py-0.5 text-[0.625rem] font-semibold text-[var(--color-score-mid)]">
+                        <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[0.625rem] font-semibold text-white/75">
                           <Trophy className="size-3" /> Leading offer
                         </span>
                       )}
@@ -366,8 +367,8 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                           className={cn(
                             "num inline-flex items-center gap-1 text-[0.8125rem] font-semibold",
                             over
-                              ? "text-[var(--color-score-low)]"
-                              : "text-[var(--color-score-high)]"
+                              ? "text-white/45"
+                              : "text-white"
                           )}
                         >
                           {over ? "+" : "−"}
@@ -381,8 +382,8 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                           )}
                           barClassName={cn(
                             over
-                              ? "bg-[var(--color-score-low)]"
-                              : "bg-[var(--color-score-high)]"
+                              ? "bg-white/30"
+                              : "bg-white"
                           )}
                         />
                       </span>
@@ -412,8 +413,8 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                           className={cn(
                             "num text-xs",
                             slack < 0
-                              ? "text-[var(--color-score-low)]"
-                              : "text-[var(--color-score-high)]"
+                              ? "text-white/45"
+                              : "text-white"
                           )}
                         >
                           {slack < 0
@@ -467,8 +468,8 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                           className={cn(
                             "num text-[0.8125rem] font-semibold",
                             all
-                              ? "text-[var(--color-score-high)]"
-                              : "text-[var(--color-score-mid)]"
+                              ? "text-white"
+                              : "text-white/75"
                           )}
                         >
                           {covered}/{total} tags
@@ -481,7 +482,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                               className={cn(
                                 "h-1.5 flex-1 rounded-full",
                                 row.bid.coversTags.includes(t)
-                                  ? "bg-[var(--color-score-high)]"
+                                  ? "bg-white"
                                   : "bg-white/10"
                               )}
                             />
@@ -545,7 +546,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                   )}
                 />
                 <tr>
-                  <td className="sticky left-0 z-10 border-t border-white/8 bg-ink-850 p-4">
+                  <td className="sticky left-0 z-10 border-t border-white/10 bg-ink-900 p-4">
                     <span className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
                       Decision
                     </span>
@@ -554,9 +555,9 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                     <td
                       key={`d-${row.bid.id}`}
                       className={cn(
-                        "border-t border-l border-white/8 p-4",
+                        "border-t border-l border-white/10 p-4",
                         row === best &&
-                          "bg-[color-mix(in_oklab,var(--color-iris-500)_8%,transparent)]"
+                          "bg-white/5"
                       )}
                     >
                       <div className="flex flex-wrap gap-2">
@@ -716,7 +717,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
         }
       >
         <div className="space-y-4">
-          <div className="flex items-center gap-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+          <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
             <ScoreRing score={best.score.total} size={64} stroke={6} />
             <div>
               <p className="text-[0.875rem] font-semibold text-white">
@@ -734,14 +735,14 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
               "Scope, price and schedule are frozen at the values shown",
             ].map((t) => (
               <li key={t} className="flex gap-2.5 text-[0.8125rem] text-white/80">
-                <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-score-high)]" />
+                <Check className="mt-0.5 size-3.5 shrink-0 text-white" />
                 {t}
               </li>
             ))}
           </ul>
           {best.score.risks.length > 0 && (
-            <div className="rounded-xl border border-[color-mix(in_oklab,var(--color-score-mid)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-score-mid)_8%,transparent)] p-3.5">
-              <p className="text-xs font-semibold text-[var(--color-score-mid)]">
+            <div className="rounded-xl border border-white/20 bg-white/5 p-3.5">
+              <p className="text-xs font-semibold text-white/75">
                 Watch before you sign
               </p>
               <p className="mt-1 text-xs leading-relaxed text-white/75">
@@ -796,7 +797,7 @@ function MatrixRow({
     <tr className={cn(emphasis && "bg-white/[0.02]")}>
       <th
         scope="row"
-        className="sticky left-0 z-10 border-t border-white/8 bg-ink-850 p-4 text-left align-top"
+        className="sticky left-0 z-10 border-t border-white/10 bg-ink-900 p-4 text-left align-top"
       >
         <span className="flex items-center gap-1.5 text-[0.75rem] font-medium text-white/70">
           {icon}
@@ -807,9 +808,9 @@ function MatrixRow({
         <td
           key={`${label}-${row.bid.id}`}
           className={cn(
-            "border-t border-l border-white/8 p-4 align-top",
+            "border-t border-l border-white/10 p-4 align-top",
             highlightIndex === i &&
-              "bg-[color-mix(in_oklab,var(--color-aqua-400)_8%,transparent)]"
+              "bg-white/5"
           )}
         >
           {render(row)}
@@ -854,15 +855,19 @@ function Highlight({
   label: string;
   value: string;
   body: string;
-  tone: "iris" | "good" | "aqua";
+  tone: Tone;
 }) {
-  const tones = {
-    iris: "text-[var(--color-iris-300)]",
-    good: "text-[var(--color-score-high)]",
-    aqua: "text-[var(--color-aqua-300)]",
+  const tones: Record<Tone, string> = {
+    neutral: "text-white/70",
+    outline: "text-white",
+    solid: "text-white",
+    muted: "text-white/60",
+    good: "text-white",
+    warn: "text-white/75",
+    bad: "text-white/40",
   };
   return (
-    <div className="bg-ink-850 p-4">
+    <div className="bg-ink-900 p-4">
       <p className="flex items-center gap-1.5 text-[0.625rem] font-semibold tracking-[0.12em] faint uppercase">
         <span className={tones[tone]}>{icon}</span>
         {label}
@@ -875,7 +880,7 @@ function Highlight({
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
       <p className="text-[0.625rem] font-semibold tracking-[0.12em] faint uppercase">
         {label}
       </p>

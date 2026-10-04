@@ -26,32 +26,33 @@ The app ships with a seeded demo dataset (8 requirements, 16 offers, 8 providers
 
 ## 🎨 UI/UX system
 
-### Design language — “signal over noise”
+### Design language — monochrome, minimal
 
-Procurement is a comparison task, so the interface is built around *legibility of differences* rather than decoration. A deep ink canvas keeps long price tables comfortable, glass surfaces group related evidence, and colour is reserved for meaning.
+Procurement is a comparison task, so the interface is built around *legibility of differences*: prices, dates and scores line up, and nothing competes with them for attention. The palette is black, white and a five-step gray. There is exactly one accent — white — and it always means "this is the action" or "this is the strongest value".
 
 | Token | Value | Used for |
 | --- | --- | --- |
-| `--color-ink-950 … 600` | `#05060b` → `#232838` | page canvas, panels, controls |
-| `--color-iris-500` | `#6d5df6` | primary action, selection, focus |
-| `--color-aqua-400` | `#38e0cd` | live signal, timeline factor, verified state |
-| `--color-score-high / mid / low` | `#2fe08a` / `#ffc247` / `#ff6b81` | the compatibility score ramp |
+| `--color-ink-950 … 600` | `#000000` → `#262626` | canvas, panels, controls |
+| `--color-accent-500` | `#ffffff` | primary buttons, active state, focus ring |
+| `--color-score-high / mid / low` | `#ffffff` / `#a6a6a6` / `#6b6b6b` | the compatibility score ramp |
 
-Every score in the product is painted from the same three-step ramp, so a buyer learns the colour language once and can then read any screen at a glance.
+The score ramp is **intensity, not hue** — 96 renders as a bright white ring, 61 as a mid-gray one. Ranking stays readable at a glance and in print, and nothing depends on colour vision. Health states follow the same rule: strong offers get a heavier fill and a brighter border, weak ones recede.
 
-**Type.** Inter, with tabular numerals (`.num`) on every price, score, percentage and count so columns of numbers align and cannot be misread.
+**No gradients, no glows, no blur.** Panels are flat with a single hairline border; hover states shift the border and background one step. Motion is one 400 ms entrance and 500 ms bar transitions, collapsing under `prefers-reduced-motion`.
 
-**Motion.** A single 500 ms `rise` entrance, 700 ms numeric bar transitions, and the `pulse-soft` live dot. All motion collapses under `prefers-reduced-motion`.
+**Type.** Inter, with tabular numerals (`.num`) on every price, percentage, day count and score so columns align and cannot be misread.
 
 ### Composite primitives
 
-`.surface` / `.surface-flat` cards, `.field` inputs, `.chip` tags, `.frame` page gutters, `.ambient` background grid + aurora, and `.gradient-text` for hero emphasis. They live in `app/globals.css` so every screen stays visually consistent without class soup.
+`.surface` / `.surface-flat` panels, `.field` inputs, `.chip` tags, `.frame` page gutters, `.eyebrow` section labels. They live in `app/globals.css` so every screen stays visually consistent without class soup.
 
 ### Reusable components
 
 `components/ui/primitives.tsx` — Button, Badge, StatusBadge, Card, Avatar, Rating, Progress, Segmented, EmptyState, TimeAgo, Divider
 `components/ui/score.tsx` — ScoreRing, ScorePill, FactorBar, ScoreBreakdown, Sparkline
 `components/ui/overlay.tsx` — Modal, Toaster
+
+`Tone` (`neutral | outline | solid | muted | good | warn | bad`) maps semantic emphasis onto the monochrome scale, so *"accepted"* reads as a filled white pill and *"declined"* as a faint outline — the same distinction, without hue.
 
 ### Screens
 
@@ -61,21 +62,26 @@ Every score in the product is painted from the same three-step ramp, so a buyer 
 | `/market` | Requirement feed | Search across specs, category rail, budget bands, urgency + saved filters, four sort modes |
 | `/market/[id]` | Requirement detail | Full brief, must-have checklist, scored offer list, offer inspector, bid composer with live score preview |
 | `/compare` | Comparison index | All requirements that have offers, leading offer, price spread |
-| `/compare/[id]` | **Comparison workspace** | 9-factor offer matrix with best-in-row highlighting, priority weighting sliders, hide/unhide offers, CSV export, print stylesheet, award flow with risk warnings |
+| `/compare/[id]` | **Comparison workspace** | 9-factor offer matrix with best-in-row emphasis, priority weighting sliders, hide/unhide offers, CSV export, print stylesheet, award flow with risk warnings |
 | `/dashboard` | Buyer + provider command centre | Role-aware: budget exposure sparkline, decision queue, offer pipeline; provider view adds capability-fit scoring and win-rate coaching |
-| `/post` | 3-step requirement wizard | Live preview card, provider-match preview, tag suggestions, milestone/validation feedback before publishing |
+| `/post` | 3-step requirement wizard | Live preview card, provider-match preview, tag suggestions, milestone and validation feedback before publishing |
 | `/proposals` | Offer ledger | Status filters, score per row, inline shortlist/accept, competition rank for providers |
 
 ### Interaction patterns
 
-- **Explainability everywhere.** No score appears without the three factor bars and a plain-language reason. The engine is auditable, not a black box.
-- **Tunable priorities.** Weight sliders (budget / timeline / relevance) sit next to the ranking they control and re-sort instantly — the same bids produce a different "best" answer.
-- **Progressive disclosure.** Feed → detail → comparison matrix → modal inspector. Detail is available in layers, never all at once.
-- **Honest state.** Every destructive or irreversible-feeling action (decline, award) shows a confirmation with the trade-offs and a watch-list of risks.
-- **Empty and loading states are designed,** not defaulted: no-offers, no-filters-match, and not-found all carry a next action.
-- **Keyboard and a11y.** Skip link, focus-visible rings, ⌘K command palette, `aria-pressed` on toggles, `role="progressbar"` with values, labelled form controls, and reduced-motion support.
+- **Explainability everywhere.** No score appears without its three factor bars and a plain-language reason.
+- **Tunable priorities.** Weight sliders (budget / timeline / relevance) sit next to the ranking they control and re-sort instantly.
+- **Progressive disclosure.** Feed → detail → comparison matrix → modal inspector.
+- **Honest state.** Decline and award show a confirmation with the trade-offs and a watch-list of risks.
+- **Empty, loading and error states are designed,** each carrying a next action.
+- **Keyboard and a11y.** Skip link, focus-visible rings, ⌘K command palette, `aria-pressed` on toggles, `role="progressbar"` with values, labelled inputs, reduced-motion support.
 
----
+### Server/client rendering invariants
+
+React recoverable hydration errors come from markup that differs between the server render and the first client render. Two rules keep that from happening, and both are enforced by the code rather than by convention:
+
+1. **No relative time during SSR.** `<TimeAgo>` renders a deterministic absolute date first and swaps to the relative label only after mount, behind `suppressHydrationWarning`.
+2. **No fractional values in markup.** Day counts are rounded at the source (`Math.round(daysUntil(...))`), the engine scores against whole days, and every number reaching an inline style or SVG attribute goes through `round()` in `lib/format.ts`.
 
 ## 📌 Problem Statement
 

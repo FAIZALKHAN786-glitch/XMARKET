@@ -19,10 +19,10 @@ import {
 import { cn } from "@/lib/cn";
 import { CATEGORIES } from "@/lib/data";
 import { rankBids } from "@/lib/engine";
-import { fromNow, usd } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { CategoryIcon } from "./icons";
-import { Avatar } from "./ui/primitives";
+import { Avatar, TimeAgo } from "./ui/primitives";
 import { ScorePill } from "./ui/score";
 
 /* ---------------------------------------------------------------- palette */
@@ -109,7 +109,7 @@ export function SearchLauncher() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Search XMARKET"
-        className="hidden size-9 place-items-center rounded-lg text-white/55 transition hover:bg-white/8 hover:text-white lg:grid"
+        className="hidden size-9 place-items-center rounded-lg text-white/55 transition hover:bg-white/5 hover:text-white lg:grid"
       >
         <Search className="size-4" />
       </button>
@@ -117,7 +117,7 @@ export function SearchLauncher() {
       {open && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center p-4 pt-[12vh]">
           <div
-            className="fixed inset-0 bg-ink-950/85 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/80"
             onClick={() => setOpen(false)}
             aria-hidden
           />
@@ -125,9 +125,9 @@ export function SearchLauncher() {
             role="dialog"
             aria-modal="true"
             aria-label="Search"
-            className="surface animate-rise relative w-full max-w-xl overflow-hidden shadow-[0_40px_120px_-40px_rgba(0,0,0,1)]"
+            className="surface animate-rise relative w-full max-w-xl overflow-hidden shadow-2xl shadow-black"
           >
-            <div className="flex items-center gap-3 border-b border-white/8 px-4">
+            <div className="flex items-center gap-3 border-b border-white/10 px-4">
               <Search className="size-4 shrink-0 text-white/40" />
               <input
                 ref={inputRef}
@@ -219,9 +219,9 @@ export function SearchLauncher() {
                 )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-white/8 bg-white/[0.02] px-4 py-2.5 text-[0.6875rem] faint">
+            <div className="flex items-center justify-between border-t border-white/10 bg-white/[0.02] px-4 py-2.5 text-[0.6875rem] faint">
               <span className="inline-flex items-center gap-1.5">
-                <Sparkles className="size-3 text-[var(--color-iris-300)]" />
+                <Sparkles className="size-3 text-white/75" />
                 Searches specs, tags, providers and pages
               </span>
               <span className="hidden sm:inline">
@@ -268,9 +268,9 @@ function Item({
   return (
     <button
       onClick={onClick}
-      className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-white/6"
+      className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-white/5"
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/8 bg-white/4 text-white/60">
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/60">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
@@ -341,24 +341,24 @@ export function NotificationBell() {
         aria-label="Notifications"
         aria-expanded={open}
         className={cn(
-          "relative grid size-9 place-items-center rounded-lg transition hover:bg-white/8 hover:text-white",
-          open ? "bg-white/8 text-white" : "text-white/55"
+          "relative grid size-9 place-items-center rounded-lg transition hover:bg-white/5 hover:text-white",
+          open ? "bg-white/5 text-white" : "text-white/55"
         )}
       >
         <Bell className="size-4" />
         {items.length > 0 && (
-          <span className="absolute top-2 right-2 size-1.5 rounded-full bg-[var(--color-aqua-400)]" />
+          <span className="absolute top-2 right-2 size-1.5 rounded-full bg-white/70" />
         )}
       </button>
 
       {open && (
-        <div className="surface animate-rise absolute top-11 right-0 w-80 overflow-hidden p-0 shadow-[0_30px_80px_-40px_rgba(0,0,0,1)]">
-          <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+        <div className="surface animate-rise absolute top-11 right-0 w-80 overflow-hidden p-0 shadow-2xl shadow-black">
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
             <p className="text-[0.8125rem] font-semibold text-white">
               Activity
             </p>
-            <span className="inline-flex items-center gap-1 text-[0.625rem] text-[var(--color-aqua-300)]">
-              <span className="size-1.5 rounded-full bg-[var(--color-aqua-400)] animate-pulse-soft" />
+            <span className="inline-flex items-center gap-1 text-[0.625rem] text-white/75">
+              <span className="size-1.5 rounded-full bg-white/70 animate-pulse-soft" />
               live
             </span>
           </div>
@@ -369,7 +369,7 @@ export function NotificationBell() {
                   onClick={() => setOpen(false)}
                   className="flex w-full items-start gap-3 border-b border-white/6 px-4 py-3 text-left transition last:border-0 hover:bg-white/5"
                 >
-                  <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--color-iris-500)]/15 text-[var(--color-iris-300)]">
+                  <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-white/15 text-white/75">
                     {role === "buyer" ? (
                       <Users className="size-3.5" />
                     ) : (
@@ -384,7 +384,7 @@ export function NotificationBell() {
                       {item.sub}
                     </span>
                     <span className="mt-1 block text-[0.625rem] faint">
-                      {fromNow(item.at)}
+                      <TimeAgo iso={item.at} />
                     </span>
                   </span>
                 </button>

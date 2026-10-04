@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { rankBids } from "@/lib/engine";
-import { fromNow, usd } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { BidStatus } from "@/lib/types";
 import { PageHeader } from "./nav";
@@ -266,7 +266,7 @@ export function ProposalsPage() {
                       seed={(row.provider?.name.length ?? 2) + row.bid.price}
                     />
                   ) : (
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-[var(--color-aqua-300)]">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/5 text-white/75">
                       <Send className="size-4" />
                     </span>
                   )}
@@ -343,7 +343,7 @@ export function ProposalsPage() {
                           onClick={() =>
                             setBidStatus(row.bid.id, "shortlisted")
                           }
-                          className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/12 bg-white/8 px-3 text-[0.8125rem] font-medium text-white transition hover:bg-white/12"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/12 bg-white/5 px-3 text-[0.8125rem] font-medium text-white transition hover:bg-white/10"
                         >
                           <Sparkles className="size-3.5" />
                           Shortlist
@@ -352,12 +352,12 @@ export function ProposalsPage() {
                       {row.bid.status !== "accepted" ? (
                         <button
                           onClick={() => setBidStatus(row.bid.id, "accepted")}
-                          className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[var(--color-iris-500)] px-3 text-[0.8125rem] font-medium text-white transition hover:bg-[var(--color-iris-400)]"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-white px-3 text-[0.8125rem] font-medium text-white transition hover:bg-white"
                         >
                           Accept
                         </button>
                       ) : (
-                        <span className="inline-flex h-8 items-center rounded-xl border border-[color-mix(in_oklab,var(--color-score-high)_35%,transparent)] px-3 text-[0.8125rem] font-medium text-[var(--color-score-high)]">
+                        <span className="inline-flex h-8 items-center rounded-xl border border-white/40 px-3 text-[0.8125rem] font-medium text-white">
                           Awarded
                         </span>
                       )}
@@ -382,11 +382,13 @@ export function ProposalsPage() {
       {rows.length > 0 && (
         <p className="mt-6 text-center text-xs faint">
           Last update{" "}
-          {fromNow(
-            rows
-              .map((r) => r.bid.createdAt)
-              .sort((a, b) => +new Date(b) - +new Date(a))[0]
-          )}{" "}
+          <TimeAgo
+            iso={
+              rows
+                .map((r) => r.bid.createdAt)
+                .sort((a, b) => +new Date(b) - +new Date(a))[0]
+            }
+          />{" "}
           · scores recalculate whenever you change priority weighting
         </p>
       )}

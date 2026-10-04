@@ -48,14 +48,14 @@ export default function HomePage() {
       <section className="relative overflow-hidden pt-14 pb-16 md:pt-20 md:pb-24">
         <div className="frame">
           <div className="mx-auto max-w-3xl text-center">
-            <Badge tone="iris" className="mb-6">
+            <Badge tone="outline" className="mb-6">
               <Sparkles className="size-3" />
               Reverse marketplace · needs-first procurement
             </Badge>
             <h1 className="text-[2.5rem] leading-[1.06] font-bold tracking-[-0.03em] text-white sm:text-[3.25rem] lg:text-[4rem]">
               Stop browsing listings.
               <br />
-              <span className="gradient-text">Post what you need.</span>
+              <span className="text-white">Post what you need.</span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-[1.0625rem] leading-relaxed muted">
               Describe the job once — specifications, budget ceiling, deadline.
@@ -82,7 +82,7 @@ export default function HomePage() {
             <HeroDemo />
           </div>
 
-          <dl className="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/8 bg-white/8 md:grid-cols-4">
+          <dl className="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/5 md:grid-cols-4">
             {stats.map((stat) => (
               <div key={stat.label} className="bg-ink-900 px-5 py-6 text-center">
                 <dd className="num text-2xl font-semibold text-white md:text-3xl">
@@ -96,23 +96,19 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ====================================================== MARQUEE */}
+      {/* ==================================================== CATEGORY RAIL */}
       <section
         aria-label="Categories in demand"
-        className="overflow-hidden border-y border-white/8 bg-white/[0.015] py-4"
+        className="border-y border-white/10 py-5"
       >
-        <div className="marquee-track gap-3">
-          {[...CATEGORIES, ...CATEGORIES, ...CATEGORIES, ...CATEGORIES].map(
-            (c, i) => (
-              <span
-                key={`${c.id}-${i}`}
-                className="chip shrink-0 border-white/8 bg-white/4 px-3.5 py-1.5 text-white/60"
-              >
-                <CategoryIcon category={c.id} className="size-3.5" />
-                {c.label}
-              </span>
-            )
-          )}
+        <div className="frame flex flex-wrap items-center gap-2">
+          <span className="eyebrow mr-1">In demand</span>
+          {CATEGORIES.map((c) => (
+            <span key={c.id} className="chip text-white/60">
+              <CategoryIcon category={c.id} className="size-3.5" />
+              {c.label}
+            </span>
+          ))}
         </div>
       </section>
 
@@ -153,7 +149,7 @@ export default function HomePage() {
           ].map((item, i) => (
             <li key={item.step} className="relative">
               <Card hover className="h-full">
-                <span className="inline-grid size-10 place-items-center rounded-xl border border-[var(--color-iris-400)]/30 bg-[var(--color-iris-500)]/12 text-[var(--color-iris-300)]">
+                <span className="inline-grid size-10 place-items-center rounded-xl border border-white/45/30 bg-white/10 text-white/75">
                   <item.icon className="size-5" />
                 </span>
                 <p className="num mt-4 text-[0.6875rem] font-bold tracking-[0.2em] faint">
@@ -176,7 +172,7 @@ export default function HomePage() {
       <section id="engine" className="frame scroll-mt-24 pt-20 md:pt-28">
         <div className="surface overflow-hidden">
           <div className="grid lg:grid-cols-2">
-            <div className="border-b border-white/8 p-7 lg:border-r lg:border-b-0 lg:p-10">
+            <div className="border-b border-white/10 p-7 lg:border-r lg:border-b-0 lg:p-10">
               <SectionHeading
                 eyebrow="Compatibility engine"
                 title="Every offer scored on the things that actually decide a deal"
@@ -189,19 +185,19 @@ export default function HomePage() {
                     icon: Target,
                     label: "Budget fit",
                     body: "Distance from your target price, plus a credibility check on suspiciously cheap bids.",
-                    tone: "text-[var(--color-score-high)]",
+                    tone: "text-white",
                   },
                   {
                     icon: Timer,
                     label: "Timeline match",
                     body: "Promised delivery measured against your deadline, rewarding realistic buffers.",
-                    tone: "text-[var(--color-aqua-400)]",
+                    tone: "text-white/60",
                   },
                   {
                     icon: Layers,
                     label: "Requirement relevance",
                     body: "Tag coverage, category fit, verified credentials and on-time history.",
-                    tone: "text-[var(--color-iris-300)]",
+                    tone: "text-white/75",
                   },
                 ].map((f) => (
                   <div key={f.label} className="flex gap-4">
@@ -222,7 +218,7 @@ export default function HomePage() {
                 ))}
               </div>
 
-              <div className="mt-8 rounded-2xl border border-white/8 bg-ink-950/60 p-4">
+              <div className="mt-8 rounded-2xl border border-white/10 bg-ink-950/60 p-4">
                 <p className="text-[0.6875rem] font-bold tracking-[0.16em] faint uppercase">
                   The formula
                 </p>
@@ -254,30 +250,30 @@ export default function HomePage() {
                   score={94}
                   weight="0.35"
                   detail="Comes in under the $78,000 target price."
-                  color="var(--color-score-high)"
+                  color="#ffffff"
                 />
                 <ScoreSample
                   label="Timeline match"
                   score={100}
                   weight="0.30"
                   detail="34 days promised against a 46-day window — 12 days of buffer."
-                  color="var(--color-score-high)"
+                  color="#a6a6a6"
                 />
                 <ScoreSample
                   label="Requirement relevance"
                   score={96}
                   weight="0.35"
                   detail="5/5 spec tags covered · 4.7★ over 118 reviews, ISO 9001 verified."
-                  color="var(--color-score-high)"
+                  color="#6b6b6b"
                 />
               </div>
 
-              <div className="mt-6 rounded-2xl border border-[color-mix(in_oklab,var(--color-score-high)_30%,transparent)] bg-[color-mix(in_oklab,var(--color-score-high)_8%,transparent)] p-4">
+              <div className="mt-6 rounded-2xl border border-white/40 bg-white/10 p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[0.8125rem] font-semibold text-white">
                     Total compatibility
                   </span>
-                  <span className="num text-2xl font-bold text-[var(--color-score-high)]">
+                  <span className="num text-2xl font-bold text-white">
                     96
                   </span>
                 </div>
@@ -304,7 +300,7 @@ export default function HomePage() {
             return (
               <Card key={c.id} hover className="group">
                 <div className="flex items-start justify-between">
-                  <span className="grid size-11 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-transparent text-[var(--color-iris-300)]">
+                  <span className="grid size-11 place-items-center rounded-lg border border-white/12 text-white/70">
                     <CategoryIcon category={c.id} className="size-5" />
                   </span>
                   <span className="num text-[0.6875rem] faint">
@@ -325,7 +321,7 @@ export default function HomePage() {
       <section className="frame pt-20 md:pt-28">
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="p-7 lg:p-8">
-            <Badge tone="iris">For buyers</Badge>
+            <Badge tone="outline">For buyers</Badge>
             <h3 className="mt-4 text-xl font-semibold text-white">
               Run a real procurement process without the spreadsheet
             </h3>
@@ -353,7 +349,7 @@ export default function HomePage() {
                 },
               ].map((f) => (
                 <li key={f.title} className="flex gap-3.5">
-                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-[var(--color-iris-300)]">
+                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/75">
                     <f.icon className="size-4" />
                   </span>
                   <div>
@@ -372,7 +368,7 @@ export default function HomePage() {
           </Card>
 
           <Card className="p-7 lg:p-8">
-            <Badge tone="aqua">For providers</Badge>
+            <Badge tone="muted">For providers</Badge>
             <h3 className="mt-4 text-xl font-semibold text-white">
               Stop paying for leads. Bid where you actually fit.
             </h3>
@@ -400,7 +396,7 @@ export default function HomePage() {
                 },
               ].map((f) => (
                 <li key={f.title} className="flex gap-3.5">
-                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-[var(--color-aqua-300)]">
+                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/75">
                     <f.icon className="size-4" />
                   </span>
                   <div>
@@ -432,13 +428,13 @@ export default function HomePage() {
           {PROVIDERS.slice(1, 5).map((p) => (
             <Card key={p.id} hover>
               <div className="flex items-center gap-3">
-                <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-[var(--color-iris-500)] to-[var(--color-aqua-500)] text-sm font-bold text-ink-950">
+                <span className="grid size-10 place-items-center rounded-lg border border-white/12 bg-white/5 text-[0.8125rem] font-semibold text-white/85">
                   {p.initials}
                 </span>
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 truncate text-[0.875rem] font-semibold text-white">
                     {p.name}
-                    <ShieldCheck className="size-3.5 shrink-0 text-[var(--color-aqua-400)]" />
+                    <ShieldCheck className="size-3.5 shrink-0 text-white/60" />
                   </p>
                   <p className="truncate text-xs faint">{p.location}</p>
                 </div>
@@ -446,9 +442,9 @@ export default function HomePage() {
               <p className="mt-3 line-clamp-2 text-[0.8125rem] leading-relaxed muted">
                 {p.tagline}
               </p>
-              <div className="mt-4 flex items-center justify-between border-t border-white/8 pt-3 text-xs">
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3 text-xs">
                 <span className="inline-flex items-center gap-1 text-white/80">
-                  <Star className="size-3 fill-[var(--color-score-mid)] text-[var(--color-score-mid)]" />
+                  <Star className="size-3 fill-white/70 text-white/70" />
                   <span className="num font-semibold">
                     {p.rating.toFixed(1)}
                   </span>
@@ -463,7 +459,7 @@ export default function HomePage() {
 
       {/* ======================================================== TRUST */}
       <section id="trust" className="frame scroll-mt-24 pt-20 md:pt-28">
-        <div className="surface grid gap-px overflow-hidden bg-white/8 lg:grid-cols-3">
+        <div className="surface grid gap-px overflow-hidden bg-white/5 lg:grid-cols-3">
           {[
             {
               icon: Lock,
@@ -481,8 +477,8 @@ export default function HomePage() {
               body: "Ranking is purely mathematical. Providers cannot buy a higher position.",
             },
           ].map((item) => (
-            <div key={item.title} className="bg-ink-850 p-7">
-              <span className="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-[var(--color-aqua-300)]">
+            <div key={item.title} className="bg-ink-900 p-7">
+              <span className="grid size-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-white/75">
                 <item.icon className="size-5" />
               </span>
               <h3 className="mt-4 font-semibold text-white">{item.title}</h3>
@@ -496,12 +492,9 @@ export default function HomePage() {
 
       {/* ========================================================= CTA */}
       <section className="frame pt-20 md:pt-28">
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[var(--color-iris-700)]/40 via-ink-850 to-[var(--color-aqua-500)]/12 p-8 text-center md:p-14">
-          <div className="pointer-events-none absolute inset-0 opacity-40 [mask-image:radial-gradient(60%_60%_at_50%_0%,black,transparent)]">
-            <div className="absolute -top-24 left-1/2 size-[28rem] -translate-x-1/2 rounded-full bg-[var(--color-iris-500)]/40 blur-[120px]" />
-          </div>
+        <div className="relative overflow-hidden rounded-2xl border border-white/12 p-8 text-center md:p-14">
           <div className="relative">
-            <Badge tone="aqua" className="mb-5">
+            <Badge tone="muted" className="mb-5">
               <Rocket className="size-3" />
               Live demo dataset loaded
             </Badge>
@@ -555,7 +548,7 @@ function ScoreSample({
           {score}
         </span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/5">
         <div
           className="h-full rounded-full"
           style={{ width: `${score}%`, background: color }}

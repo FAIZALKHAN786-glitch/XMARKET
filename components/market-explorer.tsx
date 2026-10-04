@@ -175,7 +175,7 @@ export function MarketExplorer() {
               <SlidersHorizontal className="size-4" />
               Filters
               {activeFilters > 0 && (
-                <span className="num rounded-full bg-[var(--color-iris-500)] px-1.5 text-[0.625rem] text-white">
+                <span className="num rounded-full bg-white px-1.5 text-[0.625rem] text-white">
                   {activeFilters}
                 </span>
               )}
@@ -233,6 +233,7 @@ export function MarketExplorer() {
               <Toggle
                 active={closingSoon}
                 onClick={() => setClosingSoon((v) => !v)}
+                aria-pressed={closingSoon}
               >
                 Closing in 7 days
               </Toggle>
@@ -325,7 +326,7 @@ export function MarketExplorer() {
           </div>
         )}
         {filtered.length > 0 && role === "provider" && (
-          <p className="mt-8 rounded-2xl border border-white/8 bg-white/[0.02] p-4 text-center text-[0.8125rem] muted">
+          <p className="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center text-[0.8125rem] muted">
             Average winning bid on XMARKET lands{" "}
             <span className="font-semibold text-white">
               {usd(6800, { compact: true })}
@@ -355,8 +356,8 @@ function CategoryChip({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.75rem] font-medium transition",
         active
-          ? "border-[var(--color-iris-400)]/50 bg-[var(--color-iris-500)]/18 text-white"
-          : "border-white/10 bg-white/4 text-white/60 hover:border-white/25 hover:text-white"
+          ? "border-white/45/50 bg-white/18 text-white"
+          : "border-white/10 bg-white/5 text-white/60 hover:border-white/25 hover:text-white"
       )}
     >
       {children}
@@ -380,8 +381,8 @@ function Toggle({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[0.75rem] font-medium transition",
         active
-          ? "border-[var(--color-aqua-400)]/45 bg-[var(--color-aqua-400)]/12 text-[var(--color-aqua-300)]"
-          : "border-white/10 bg-white/4 text-white/60 hover:border-white/25 hover:text-white"
+          ? "border-white/30/45 bg-white/70/12 text-white/75"
+          : "border-white/10 bg-white/5 text-white/60 hover:border-white/25 hover:text-white"
       )}
     >
       {children}

@@ -4,6 +4,7 @@ import * as React from "react";
 import { RotateCcw, Sliders, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { DEFAULT_WEIGHTS } from "@/lib/engine";
+import { round } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { Weights } from "@/lib/types";
 import { Button } from "./ui/primitives";
@@ -18,19 +19,19 @@ const ROWS: {
     key: "budget",
     label: "Budget priority",
     hint: "Rewards offers that come in under your target price",
-    accent: "var(--color-score-high)",
+    accent: "#ffffff",
   },
   {
     key: "timeline",
     label: "Timeline priority",
     hint: "Rewards faster delivery against your deadline",
-    accent: "var(--color-aqua-400)",
+    accent: "#9a9a9a",
   },
   {
     key: "relevance",
     label: "Requirement relevance",
     hint: "Weights experience, tag coverage and reliability",
-    accent: "var(--color-iris-400)",
+    accent: "#5c5c5c",
   },
 ];
 
@@ -55,7 +56,7 @@ export function WeightTuner({ className }: { className?: string }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="flex items-center gap-2 text-[0.9375rem] font-semibold text-white">
-            <Sliders className="size-4 text-[var(--color-iris-300)]" />
+            <Sliders className="size-4 text-white/75" />
             Priority weighting
           </p>
           <p className="mt-1 text-[0.8125rem] leading-relaxed muted">
@@ -130,28 +131,28 @@ export function WeightTuner({ className }: { className?: string }) {
                   update(row.key, Number(e.target.value) / 100 + 0.0001)
                 }
                 aria-label={row.label}
-                className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[var(--color-iris-400)] [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-ink-950 [&::-webkit-slider-thumb]:bg-[var(--color-iris-400)] [&::-webkit-slider-thumb]:shadow-[0_0_0_4px_rgba(109,93,246,0.22)]"
+                className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-white [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-ink-950 [&::-webkit-slider-thumb]:bg-white"
               />
             </div>
           );
         })}
       </div>
 
-      <div className="mt-5 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+      <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.02] p-3">
         <p className="flex items-center gap-1.5 text-[0.6875rem] font-semibold tracking-wide text-white/50 uppercase">
           <Sparkles className="size-3" /> Live formula
         </p>
         <p className="num mt-2 text-[0.8125rem] text-white/80">
           score ={" "}
-          <span className="text-[var(--color-score-high)]">
+          <span className="text-white">
             {weights.budget.toFixed(2)}
           </span>
           ·budget +{" "}
-          <span className="text-[var(--color-aqua-400)]">
+          <span className="text-white/60">
             {weights.timeline.toFixed(2)}
           </span>
           ·timeline +{" "}
-          <span className="text-[var(--color-iris-300)]">
+          <span className="text-white/75">
             {weights.relevance.toFixed(2)}
           </span>
           ·relevance
@@ -176,8 +177,8 @@ function PresetChip({
       className={cn(
         "rounded-full border px-3 py-1 text-[0.75rem] font-medium transition",
         active
-          ? "border-[var(--color-iris-400)]/50 bg-[var(--color-iris-500)]/18 text-white"
-          : "border-white/10 bg-white/4 text-white/60 hover:border-white/25 hover:text-white"
+          ? "border-white/45/50 bg-white/18 text-white"
+          : "border-white/10 bg-white/5 text-white/60 hover:border-white/25 hover:text-white"
       )}
     >
       {children}

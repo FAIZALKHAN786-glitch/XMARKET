@@ -52,7 +52,7 @@ function scoreBudget(price: number, req: Requirement) {
     score = 100 - t * 30;
     detail = `Above target but still inside the $${budgetMax.toLocaleString()} ceiling.`;
   } else {
-    const over = (price - budgetMax) / budgetMax;
+    const over = price / budgetMax - 1;
     score = clamp(62 - over * 220);
     detail = `Exceeds the $${budgetMax.toLocaleString()} budget ceiling by ${Math.round(
       over * 100
@@ -66,8 +66,11 @@ function scoreBudget(price: number, req: Requirement) {
  * Delivery feasibility against the buyer's deadline.
  */
 function scoreTimeline(bid: Bid, req: Requirement) {
-  const available = daysUntil(req.deadline);
-  const promised = bid.deliveryDays;
+  // Whole days on purpose: fractional day counts would let the server and the
+  // client disagree about `available` (and therefore about the score, the bar
+  // width and the explanation text) across a hydration boundary.
+  const available = Math.round(daysUntil(req.deadline));
+  const promised = Math.round(bid.deliveryDays);
   let score: number;
   let detail: string;
 
@@ -197,28 +200,29 @@ export function grade(score: number): Score["grade"] {
 }
 
 export function scoreToken(score: number) {
+  // Monochrome intensity ramp: brighter fill == stronger score.
   if (score >= 85)
     return {
-      text: "text-[var(--color-score-high)]",
-      bg: "bg-[var(--color-score-high)]",
-      soft: "bg-[color-mix(in_oklab,var(--color-score-high)_16%,transparent)]",
-      ring: "border-[color-mix(in_oklab,var(--color-score-high)_40%,transparent)]",
-      hex: "var(--color-score-high)",
+      text: "text-white",
+      bg: "bg-white",
+      soft: "bg-white/12",
+      ring: "border-white/45",
+      hex: "#ffffff",
     };
   if (score >= 70)
     return {
-      text: "text-[var(--color-score-mid)]",
-      bg: "bg-[var(--color-score-mid)]",
-      soft: "bg-[color-mix(in_oklab,var(--color-score-mid)_16%,transparent)]",
-      ring: "border-[color-mix(in_oklab,var(--color-score-mid)_40%,transparent)]",
-      hex: "var(--color-score-mid)",
+      text: "text-white/75",
+      bg: "bg-white/55",
+      soft: "bg-white/8",
+      ring: "border-white/25",
+      hex: "#a6a6a6",
     };
   return {
-    text: "text-[var(--color-score-low)]",
-    bg: "bg-[var(--color-score-low)]",
-    soft: "bg-[color-mix(in_oklab,var(--color-score-low)_16%,transparent)]",
-    ring: "border-[color-mix(in_oklab,var(--color-score-low)_40%,transparent)]",
-    hex: "var(--color-score-low)",
+    text: "text-white/50",
+    bg: "bg-white/30",
+    soft: "bg-white/5",
+    ring: "border-white/12",
+    hex: "#6b6b6b",
   };
 }
 

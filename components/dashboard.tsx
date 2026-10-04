@@ -27,6 +27,7 @@ import { useStore } from "@/lib/store";
 import { CategoryMark } from "./icons";
 import { PageHeader } from "./nav";
 import { StatStrip } from "./stat-strip";
+import type { Tone } from "./ui/primitives";
 import {
   Avatar,
   Badge,
@@ -218,7 +219,7 @@ function BuyerView({
             </h2>
             <Link
               href="/compare"
-              className="text-[0.8125rem] text-[var(--color-iris-300)] hover:text-white"
+              className="text-[0.8125rem] text-white/75 hover:text-white"
             >
               All comparisons
             </Link>
@@ -251,13 +252,13 @@ function BuyerView({
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
                           href={`/market/${requirement.id}`}
-                          className="text-[0.9375rem] font-semibold text-white hover:text-[var(--color-iris-300)]"
+                          className="text-[0.9375rem] font-semibold text-white hover:text-white/75"
                         >
                           {requirement.title}
                         </Link>
                         <StatusBadge status={requirement.status} />
                         {newCount > 0 && (
-                          <Badge tone="iris">
+                          <Badge tone="outline">
                             <BellRing className="size-3" />
                             {newCount} to review
                           </Badge>
@@ -274,7 +275,7 @@ function BuyerView({
 
                   {ranked.length > 0 && (
                     <>
-                      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/8 pt-4">
+                      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/10 pt-4">
                         <Mini label="Offers" value={String(ranked.length)} />
                         <Mini
                           label="Best price"
@@ -293,7 +294,7 @@ function BuyerView({
                         {ranked.slice(0, 3).map((row, i) => (
                           <li
                             key={row.bid.id}
-                            className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2.5"
+                            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2.5"
                           >
                             <span className="num text-[0.6875rem] faint">
                               #{i + 1}
@@ -354,7 +355,7 @@ function BuyerView({
               Ceilings across your live requirements
             </p>
             <Sparkline points={spendSeries} className="mt-3" />
-            <div className="mt-4 space-y-3 border-t border-white/8 pt-4">
+            <div className="mt-4 space-y-3 border-t border-white/10 pt-4">
               <Row
                 label="Lowest offers on the table"
                 value={usd(lowestOffers, { compact: true })}
@@ -365,7 +366,7 @@ function BuyerView({
                 value={usd(Math.max(0, totalCeiling - lowestOffers), {
                   compact: true,
                 })}
-                tone="aqua"
+                tone="muted"
               />
               <Row
                 label="Avg. discount vs ceiling"
@@ -393,7 +394,7 @@ function BuyerView({
                 .slice(0, 4)
                 .map((r) => (
                   <li key={r.id} className="flex items-center gap-3">
-                    <span className="size-1.5 shrink-0 rounded-full bg-[var(--color-score-mid)]" />
+                    <span className="size-1.5 shrink-0 rounded-full bg-white/55" />
                     <Link
                       href={`/market/${r.id}`}
                       className="min-w-0 flex-1 truncate text-[0.8125rem] text-white/85 hover:text-white"
@@ -430,11 +431,11 @@ function BuyerView({
                         className="mt-1.5"
                         barClassName={cn(
                           status === "accepted"
-                            ? "bg-[var(--color-score-high)]"
+                            ? "bg-white"
                             : status === "shortlisted"
-                              ? "bg-[var(--color-iris-400)]"
+                              ? "bg-white"
                               : status === "rejected"
-                                ? "bg-[var(--color-score-low)]"
+                                ? "bg-white/30"
                                 : "bg-white/30"
                         )}
                       />
@@ -576,7 +577,7 @@ function ProviderView({
             </h2>
             <Link
               href="/market"
-              className="text-[0.8125rem] text-[var(--color-iris-300)] hover:text-white"
+              className="text-[0.8125rem] text-white/75 hover:text-white"
             >
               Browse all
             </Link>
@@ -589,7 +590,7 @@ function ProviderView({
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`/market/${requirement.id}`}
-                    className="text-[0.9375rem] font-semibold text-white hover:text-[var(--color-iris-300)]"
+                    className="text-[0.9375rem] font-semibold text-white hover:text-white/75"
                   >
                     {requirement.title}
                   </Link>
@@ -612,13 +613,13 @@ function ProviderView({
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="num text-lg font-bold text-[var(--color-aqua-300)]">
+                  <p className="num text-lg font-bold text-white/75">
                     {fit}%
                   </p>
                   <p className="text-[0.625rem] faint">capability fit</p>
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-between border-t border-white/8 pt-4">
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
                 <span className="text-xs faint">
                   {overlap > 0
                     ? `${overlap} of your skills match its tags`
@@ -643,7 +644,7 @@ function ProviderView({
               <BadgeCheck className="size-3.5" /> Your standing
             </p>
             <div className="mt-4 flex items-center gap-4">
-              <span className="grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-[var(--color-iris-500)] to-[var(--color-aqua-500)] text-sm font-bold text-ink-950">
+              <span className="grid size-12 place-items-center rounded-xl border border-white/12 bg-white/5 text-[0.8125rem] font-semibold text-white/85">
                 {me.initials}
               </span>
               <div className="min-w-0">
@@ -653,11 +654,11 @@ function ProviderView({
                 <p className="truncate text-xs faint">{me.tagline}</p>
               </div>
             </div>
-            <dl className="mt-4 space-y-3 border-t border-white/8 pt-4">
+            <dl className="mt-4 space-y-3 border-t border-white/10 pt-4">
               <Row label="Rating" value={`${me.rating.toFixed(1)}★ (${me.reviews})`} />
               <Row label="On-time delivery" value={`${me.onTimeRate}%`} tone="good" />
               <Row label="Completed jobs" value={String(me.completedJobs)} />
-              <Row label="Avg. response" value={`${me.responseHours}h`} tone="aqua" />
+              <Row label="Avg. response" value={`${me.responseHours}h`} tone="muted" />
             </dl>
           </Card>
 
@@ -706,7 +707,7 @@ function ProviderView({
                 "Tag coverage below 80% drags relevance more than a 5% price cut helps.",
               ].map((t) => (
                 <li key={t} className="flex gap-2.5 text-[0.8125rem] muted">
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--color-score-mid)]" />
+                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-white/55" />
                   {t}
                 </li>
               ))}
@@ -738,16 +739,15 @@ function Row({
 }: {
   label: string;
   value: string;
-  tone?: "good" | "aqua";
+  tone?: Tone;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
       <span className="text-white/55">{label}</span>
       <span
         className={cn(
-          "num font-semibold text-white",
-          tone === "good" && "text-[var(--color-score-high)]",
-          tone === "aqua" && "text-[var(--color-aqua-300)]"
+          "num font-semibold",
+          tone === "muted" || tone === "bad" ? "text-white/60" : "text-white"
         )}
       >
         {value}

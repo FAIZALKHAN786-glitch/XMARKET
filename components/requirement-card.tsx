@@ -32,8 +32,12 @@ export function RequirementCard({
   const isSaved = saved.includes(requirement.id);
   const category = CATEGORIES.find((c) => c.id === requirement.category);
   const mine = requirement.buyerId === meBuyerId;
-  const windowLeft = Math.max(0, daysUntil(requirement.closesAt));
-  const total = Math.max(1, daysUntil(requirement.closesAt) + 14);
+  // Whole days only. `daysUntil` returns a fractional value, and rendering it
+  // directly produced "9.58 days left" — and, because the fractional part
+  // differed between the server render and the client hydration, a React
+  // recoverable hydration error on every feed card.
+  const windowLeft = Math.max(0, Math.round(daysUntil(requirement.closesAt)));
+  const total = Math.max(1, windowLeft + 14);
 
   return (
     <article
@@ -48,7 +52,7 @@ export function RequirementCard({
           <div className="flex items-start justify-between gap-3">
             <Link
               href={`/market/${requirement.id}`}
-              className="text-[0.9375rem] leading-snug font-semibold text-white transition group-hover:text-[var(--color-iris-300)]"
+              className="text-[0.9375rem] leading-snug font-semibold text-white transition group-hover:text-white/75"
             >
               {requirement.title}
             </Link>
@@ -59,7 +63,7 @@ export function RequirementCard({
               className={cn(
                 "grid size-8 shrink-0 place-items-center rounded-lg border transition",
                 isSaved
-                  ? "border-[var(--color-iris-400)]/40 bg-[var(--color-iris-500)]/15 text-[var(--color-iris-300)]"
+                  ? "border-white/45/40 bg-white/15 text-white/75"
                   : "border-white/10 text-white/40 hover:border-white/25 hover:text-white"
               )}
             >
@@ -76,11 +80,11 @@ export function RequirementCard({
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Badge tone="neutral">{category?.label}</Badge>
-        {mine && <Badge tone="iris">Your request</Badge>}
+        {mine && <Badge tone="outline">Your request</Badge>}
         <StatusBadge status={requirement.status} />
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/8 pt-4 text-[0.8125rem]">
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-white/10 pt-4 text-[0.8125rem]">
         <div>
           <dt className="flex items-center gap-1.5 text-[0.6875rem] tracking-wide faint uppercase">
             <Wallet className="size-3" /> Budget cap
@@ -113,7 +117,7 @@ export function RequirementCard({
         </div>
       </dl>
 
-      <div className="mt-4 border-t border-white/8 pt-4">
+      <div className="mt-4 border-t border-white/10 pt-4">
         <div className="flex items-center justify-between text-[0.6875rem]">
           <span className="faint">Bidding window</span>
           <span className="num text-white/70">
@@ -126,10 +130,10 @@ export function RequirementCard({
           className="mt-2"
           barClassName={cn(
             windowLeft <= 5
-              ? "bg-[var(--color-score-low)]"
+              ? "bg-white/30"
               : windowLeft <= 12
-                ? "bg-[var(--color-score-mid)]"
-                : "bg-[var(--color-aqua-400)]"
+                ? "bg-white/55"
+                : "bg-white/70"
           )}
         />
       </div>
@@ -140,7 +144,7 @@ export function RequirementCard({
         </span>
         <Link
           href={`/market/${requirement.id}`}
-          className="inline-flex items-center gap-1 text-[0.8125rem] font-medium text-[var(--color-iris-300)] transition hover:gap-1.5 hover:text-white"
+          className="inline-flex items-center gap-1 text-[0.8125rem] font-medium text-white/75 transition hover:gap-1.5 hover:text-white"
         >
           {mine ? "Review offers" : "View & bid"}
           <ArrowUpRight className="size-3.5" />

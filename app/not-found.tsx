@@ -6,7 +6,7 @@ export default function NotFound() {
   return (
     <div className="frame pt-24 pb-32">
       <div className="mx-auto max-w-xl">
-        <p className="text-center text-[0.6875rem] font-bold tracking-[0.22em] text-[var(--color-iris-300)] uppercase">
+        <p className="text-center text-[0.6875rem] font-bold tracking-[0.22em] text-white/75 uppercase">
           404 — page not found
         </p>
         <h1 className="mt-4 text-center text-[2rem] font-semibold text-white">
@@ -33,7 +33,7 @@ export default function NotFound() {
             action={
               <Link
                 href="/compare"
-                className="text-[0.8125rem] font-medium text-[var(--color-iris-300)] hover:text-white"
+                className="text-[0.8125rem] font-medium text-white/75 hover:text-white"
               >
                 Open the comparison dashboard →
               </Link>

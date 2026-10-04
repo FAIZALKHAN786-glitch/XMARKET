@@ -86,9 +86,7 @@ export function SiteHeader() {
     <header
       className={cn(
         "sticky top-0 z-40 border-b transition-colors duration-300",
-        scrolled
-          ? "border-white/8 bg-ink-950/85 backdrop-blur-xl"
-          : "border-transparent bg-transparent"
+        scrolled ? "border-white/10 bg-ink-950/90" : "border-transparent"
       )}
     >
       <div className="frame flex h-16 items-center gap-3">
@@ -105,8 +103,8 @@ export function SiteHeader() {
                 className={cn(
                   "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[0.8125rem] font-medium transition",
                   active
-                    ? "bg-white/8 text-white"
-                    : "text-white/60 hover:bg-white/6 hover:text-white"
+                    ? "bg-white/5 text-white"
+                    : "text-white/60 hover:bg-white/5 hover:text-white"
                 )}
               >
                 <link.icon className="size-3.5" />
@@ -123,7 +121,7 @@ export function SiteHeader() {
           <SearchLauncher />
           <NotificationBell />
 
-          <span className="hidden items-center gap-2.5 rounded-xl border border-white/8 bg-white/4 py-1.5 pr-3 pl-1.5 lg:inline-flex">
+          <span className="hidden items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 py-1.5 pr-3 pl-1.5 lg:inline-flex">
             <Avatar initials={me?.initials ?? "??"} size={26} seed={3} />
             <span className="text-[0.8125rem] font-medium text-white/85">
               {"company" in (me ?? {})
@@ -145,7 +143,7 @@ export function SiteHeader() {
             onClick={() => setOpen((v) => !v)}
             aria-label="Menu"
             aria-expanded={open}
-            className="grid size-9 place-items-center rounded-lg text-white/70 transition hover:bg-white/8 md:hidden"
+            className="grid size-9 place-items-center rounded-lg text-white/70 transition hover:bg-white/5 md:hidden"
           >
             {open ? <X className="size-4.5" /> : <Menu className="size-4.5" />}
           </button>
@@ -153,14 +151,14 @@ export function SiteHeader() {
       </div>
 
       {open && (
-        <div className="border-t border-white/8 bg-ink-900/95 backdrop-blur-xl md:hidden">
+        <div className="border-t border-white/10 bg-ink-950 md:hidden">
           <div className="frame flex flex-col gap-1 py-4">
             <RoleSwitch className="mb-2 self-start" />
             {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="inline-flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-white/80 hover:bg-white/8"
+                className="inline-flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-white/80 hover:bg-white/5"
               >
                 <link.icon className="size-4" />
                 {link.label}
@@ -188,7 +186,7 @@ export function MobileTabBar() {
     { href: "/proposals", label: "Offers", icon: FileText },
   ];
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-ink-900/95 backdrop-blur-xl sm:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-ink-950 sm:hidden">
       <div className="grid grid-cols-4">
         {all.map((link) => {
           const active = pathname.startsWith(link.href);
@@ -198,7 +196,7 @@ export function MobileTabBar() {
               href={link.href}
               className={cn(
                 "flex flex-col items-center gap-1 py-2.5 text-[0.625rem] font-medium transition",
-                active ? "text-[var(--color-iris-300)]" : "text-white/50"
+                active ? "text-white/75" : "text-white/50"
               )}
             >
               <link.icon className="size-4" />
@@ -241,7 +239,7 @@ export function SiteFooter() {
   ];
 
   return (
-    <footer className="mt-24 border-t border-white/8 bg-ink-950/60 pb-20 sm:pb-10">
+    <footer className="mt-24 border-t border-white/10 bg-ink-950/60 pb-20 sm:pb-10">
       <div className="frame grid gap-10 py-14 md:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div>
           <Logo />
@@ -252,7 +250,7 @@ export function SiteFooter() {
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <span className="chip text-white/60">
-              <span className="size-1.5 rounded-full bg-[var(--color-aqua-400)] animate-pulse-soft" />
+              <span className="size-1.5 rounded-full bg-white/70 animate-pulse-soft" />
               Live demo build
             </span>
             <span className="chip text-white/60">MIT licensed</span>
@@ -300,10 +298,10 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-5 border-b border-white/8 pb-7 lg:flex-row lg:items-end lg:justify-between">
+    <div className="flex flex-col gap-5 border-b border-white/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
       <div className="max-w-2xl">
         {eyebrow && (
-          <p className="mb-2.5 text-[0.6875rem] font-bold tracking-[0.22em] text-[var(--color-iris-300)] uppercase">
+          <p className="mb-2.5 text-[0.6875rem] font-bold tracking-[0.22em] text-white/75 uppercase">
             {eyebrow}
           </p>
         )}

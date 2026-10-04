@@ -3,14 +3,15 @@
 import { RotateCcw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { DEFAULT_WEIGHTS } from "@/lib/engine";
+import { round } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { Weights } from "@/lib/types";
 import { Button } from "./ui/primitives";
 
 const ROWS: { key: keyof Weights; label: string; color: string }[] = [
-  { key: "budget", label: "Budget", color: "var(--color-score-high)" },
-  { key: "timeline", label: "Timeline", color: "var(--color-aqua-400)" },
-  { key: "relevance", label: "Relevance", color: "var(--color-iris-400)" },
+  { key: "budget", label: "Budget", color: "#ffffff" },
+  { key: "timeline", label: "Timeline", color: "#9a9a9a" },
+  { key: "relevance", label: "Relevance", color: "#5c5c5c" },
 ];
 
 const PRESETS: { label: string; weights: Weights }[] = [
@@ -69,8 +70,8 @@ export function WeightsPanel({ className }: { className?: string }) {
             className={cn(
               "rounded-full border px-2.5 py-1 text-[0.6875rem] font-medium transition",
               activePreset?.label === p.label
-                ? "border-[var(--color-iris-400)]/55 bg-[var(--color-iris-500)]/20 text-white"
-                : "border-white/10 bg-white/4 text-white/60 hover:border-white/25 hover:text-white"
+                ? "border-white/45/55 bg-white/20 text-white"
+                : "border-white/10 bg-white/5 text-white/60 hover:border-white/25 hover:text-white"
             )}
           >
             {p.label}
@@ -79,14 +80,14 @@ export function WeightsPanel({ className }: { className?: string }) {
       </div>
 
       {/* stacked weight bar */}
-      <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-white/8">
+      <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-white/5">
         {ROWS.map((row) => (
           <span
             key={row.key}
             title={`${row.label} ${((weights[row.key] / total) * 100).toFixed(0)}%`}
             className="h-full transition-[width] duration-300"
             style={{
-              width: `${(weights[row.key] / total) * 100}%`,
+              width: `${round((weights[row.key] / total) * 100, 1)}%`,
               background: row.color,
             }}
           />

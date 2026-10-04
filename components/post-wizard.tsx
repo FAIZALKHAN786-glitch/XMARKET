@@ -134,9 +134,9 @@ export function PostWizard() {
 
   return (
     <div className="frame pt-10 pb-16 md:pt-14">
-      <div className="flex flex-col gap-4 border-b border-white/8 pb-7 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl">
-          <p className="mb-2.5 text-[0.6875rem] font-bold tracking-[0.22em] text-[var(--color-iris-300)] uppercase">
+          <p className="mb-2.5 text-[0.6875rem] font-bold tracking-[0.22em] text-white/75 uppercase">
             {role === "buyer" ? "New requirement" : "Post as buyer"}
           </p>
           <h1 className="text-[1.75rem] font-semibold text-white md:text-[2.25rem] md:leading-[1.12]">
@@ -149,7 +149,7 @@ export function PostWizard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge tone="aqua">
+          <Badge tone="muted">
             <Sparkles className="size-3" />
             Free to post
           </Badge>
@@ -171,10 +171,10 @@ export function PostWizard() {
                 className={cn(
                   "w-full rounded-2xl border p-4 text-left transition",
                   active
-                    ? "border-[var(--color-iris-400)]/50 bg-[var(--color-iris-500)]/10"
+                    ? "border-white/45/50 bg-white/10"
                     : done
-                      ? "border-white/10 bg-white/4 hover:border-white/25"
-                      : "border-white/8 bg-white/[0.015] opacity-70"
+                      ? "border-white/10 bg-white/5 hover:border-white/25"
+                      : "border-white/10 bg-white/[0.015] opacity-70"
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -182,10 +182,10 @@ export function PostWizard() {
                     className={cn(
                       "grid size-7 shrink-0 place-items-center rounded-lg text-[0.75rem] font-bold",
                       done
-                        ? "bg-[var(--color-score-high)] text-ink-950"
+                        ? "bg-white text-black"
                         : active
-                          ? "bg-[var(--color-iris-500)] text-white"
-                          : "bg-white/8 text-white/50"
+                          ? "bg-white text-white"
+                          : "bg-white/5 text-white/50"
                     )}
                   >
                     {done ? <Check className="size-3.5" strokeWidth={3} /> : s.id + 1}
@@ -228,8 +228,8 @@ export function PostWizard() {
                       className={cn(
                         "flex items-start gap-3 rounded-xl border p-3 text-left transition",
                         category === c.id
-                          ? "border-[var(--color-iris-400)]/55 bg-[var(--color-iris-500)]/12"
-                          : "border-white/10 bg-white/3 hover:border-white/25"
+                          ? "border-white/45/55 bg-white/10"
+                          : "border-white/10 bg-white/[0.03] hover:border-white/25"
                       )}
                     >
                       <CategoryIcon
@@ -237,7 +237,7 @@ export function PostWizard() {
                         className={cn(
                           "mt-0.5 size-4 shrink-0",
                           category === c.id
-                            ? "text-[var(--color-iris-300)]"
+                            ? "text-white/75"
                             : "text-white/45"
                         )}
                       />
@@ -325,7 +325,7 @@ export function PostWizard() {
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      className="chip border-[var(--color-iris-400)]/40 bg-[var(--color-iris-500)]/14 text-[var(--color-iris-300)]"
+                      className="chip border-white/45/40 bg-white/14 text-white/75"
                     >
                       {tag}
                       <button
@@ -377,7 +377,7 @@ export function PostWizard() {
                         "chip transition",
                         tags.includes(t)
                           ? "opacity-40"
-                          : "text-white/65 hover:border-[var(--color-iris-400)]/50 hover:text-white"
+                          : "text-white/65 hover:border-white/45/50 hover:text-white"
                       )}
                     >
                       <Plus className="size-3" />
@@ -400,9 +400,9 @@ export function PostWizard() {
                   {mustHaves.map((m, i) => (
                     <li
                       key={`${m}-${i}`}
-                      className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/3 px-3 py-2"
+                      className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"
                     >
-                      <Target className="size-3.5 shrink-0 text-[var(--color-aqua-400)]" />
+                      <Target className="size-3.5 shrink-0 text-white/60" />
                       <span className="flex-1 text-[0.8125rem] text-white/85">
                         {m}
                       </span>
@@ -411,7 +411,7 @@ export function PostWizard() {
                           setMustHaves((prev) => prev.filter((_, xi) => xi !== i))
                         }
                         aria-label={`Remove ${m}`}
-                        className="text-white/35 hover:text-[var(--color-score-low)]"
+                        className="text-white/35 hover:text-white/45"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -531,7 +531,7 @@ export function PostWizard() {
                 </div>
               </div>
 
-              <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
                 <div className="flex items-center justify-between text-[0.8125rem]">
                   <span className="text-white/70">Budget envelope</span>
                   <span className="num font-semibold text-white">
@@ -545,7 +545,7 @@ export function PostWizard() {
                       : 0
                   }
                   className="mt-3"
-                  barClassName="bg-[var(--color-score-high)]"
+                  barClassName="bg-white"
                 />
                 <p className="mt-2 text-xs faint">
                   You are anchoring scoring at{" "}
@@ -560,8 +560,8 @@ export function PostWizard() {
                 </p>
               </div>
 
-              <div className="mt-5 flex gap-3 rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
-                <Info className="mt-0.5 size-4 shrink-0 text-[var(--color-iris-300)]" />
+              <div className="mt-5 flex gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                <Info className="mt-0.5 size-4 shrink-0 text-white/75" />
                 <p className="text-xs leading-relaxed muted">
                   Budget ceilings are only shown to matched, verified providers.
                   They are never made public or indexed.
@@ -571,11 +571,11 @@ export function PostWizard() {
           )}
 
           {touched && errors.length > 0 && (
-            <ul className="space-y-2 rounded-2xl border border-[color-mix(in_oklab,var(--color-score-low)_35%,transparent)] bg-[color-mix(in_oklab,var(--color-score-low)_8%,transparent)] p-4">
+            <ul className="space-y-2 rounded-2xl border border-white/15 bg-white/5 p-4">
               {errors.map((e) => (
                 <li
                   key={e}
-                  className="flex gap-2 text-[0.8125rem] text-[var(--color-score-low)]"
+                  className="flex gap-2 text-[0.8125rem] text-white/45"
                 >
                   <X className="mt-0.5 size-3.5 shrink-0" />
                   {e}
@@ -616,7 +616,7 @@ export function PostWizard() {
               <p className="flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
                 <Eye className="size-3.5" /> Live preview
               </p>
-              <Badge tone="iris">
+              <Badge tone="outline">
                 {matchedProviders.length} providers matched
               </Badge>
             </div>
@@ -633,7 +633,7 @@ export function PostWizard() {
               </div>
             </div>
 
-            <dl className="mt-4 space-y-2.5 border-t border-white/8 pt-4 text-[0.8125rem]">
+            <dl className="mt-4 space-y-2.5 border-t border-white/10 pt-4 text-[0.8125rem]">
               <PreviewLine
                 icon={<Wallet className="size-3.5" />}
                 label="Budget"
@@ -660,7 +660,7 @@ export function PostWizard() {
             </dl>
 
             {tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-1.5 border-t border-white/8 pt-4">
+              <div className="mt-4 flex flex-wrap gap-1.5 border-t border-white/10 pt-4">
                 {tags.map((t) => (
                   <span key={t} className="chip text-white/65">
                     {t}
@@ -677,14 +677,14 @@ export function PostWizard() {
             <ul className="mt-4 space-y-3">
               {matchedProviders.slice(0, 4).map((p) => (
                 <li key={p.id} className="flex items-center gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[var(--color-iris-500)] to-[var(--color-aqua-500)] text-[0.6875rem] font-bold text-ink-950">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/12 bg-white/5 text-[0.6875rem] font-semibold text-white/80">
                     {p.initials}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1 truncate text-[0.8125rem] font-medium text-white">
                       {p.name}
                       {p.verified && (
-                        <BadgeCheck className="size-3 shrink-0 text-[var(--color-aqua-400)]" />
+                        <BadgeCheck className="size-3 shrink-0 text-white/60" />
                       )}
                     </p>
                     <p className="truncate text-[0.6875rem] faint">
@@ -717,7 +717,7 @@ export function PostWizard() {
                 "Put the true ceiling — a lowball ceiling attracts no serious bids.",
               ].map((t) => (
                 <li key={t} className="flex gap-2.5 text-[0.8125rem] muted">
-                  <Check className="mt-0.5 size-3.5 shrink-0 text-[var(--color-score-high)]" />
+                  <Check className="mt-0.5 size-3.5 shrink-0 text-white" />
                   {t}
                 </li>
               ))}

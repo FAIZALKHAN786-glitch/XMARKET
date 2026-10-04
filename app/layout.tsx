@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#05060b",
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
 };
@@ -45,11 +45,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="ambient min-h-dvh font-sans">
+      <body className="min-h-dvh font-sans">
         <StoreProvider>
           <a
             href="#main"
-            className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-[var(--color-iris-500)] focus:px-4 focus:py-2 focus:text-sm focus:text-white"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:text-white"
           >
             Skip to content
           </a>

@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   XMARKET — Design tokens
-   A "signal over noise" system: deep ink canvas, glass surfaces, one electric
-   iris accent for action, aqua for signal, and a semantic score ramp.
+   XMARKET — design tokens
+   Monochrome, minimal. One canvas ramp, one accent (white), and a
+   three-step grayscale score ramp. Nothing else carries meaning.
    ========================================================================== */
 
 @theme {
@@ -12,47 +12,42 @@
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
   /* Canvas */
-  --color-ink-950: #05060b;
-  --color-ink-900: #080a12;
-  --color-ink-850: #0b0e19;
-  --color-ink-800: #10131f;
-  --color-ink-700: #171b2a;
-  --color-ink-600: #232838;
+  --color-ink-950: #000000;
+  --color-ink-900: #070707;
+  --color-ink-850: #0c0c0c;
+  --color-ink-800: #121212;
+  --color-ink-700: #1a1a1a;
+  --color-ink-600: #262626;
 
-  /* Iris — primary action */
-  --color-iris-300: #b9b1ff;
-  --color-iris-400: #9287ff;
-  --color-iris-500: #6d5df6;
-  --color-iris-600: #5745e0;
-  --color-iris-700: #4433b8;
+  /* Accent — white is the only accent */
+  --color-accent-300: #f2f2f2;
+  --color-accent-400: #e0e0e0;
+  --color-accent-500: #ffffff;
+  --color-accent-600: #cccccc;
+  --color-accent-700: #a3a3a3;
 
-  /* Aqua — signal / live */
-  --color-aqua-300: #7defe0;
-  --color-aqua-400: #38e0cd;
-  --color-aqua-500: #16c9b8;
+  /* Secondary signal */
+  --color-signal-300: #e5e5e5;
+  --color-signal-400: #b3b3b3;
+  --color-signal-500: #8a8a8a;
 
-  /* Score ramp */
-  --color-score-high: #2fe08a;
-  --color-score-mid: #ffc247;
-  --color-score-low: #ff6b81;
+  /* Score ramp — intensity, not hue */
+  --color-score-high: #ffffff;
+  --color-score-mid: #a6a6a6;
+  --color-score-low: #6b6b6b;
 
-  --radius-xl: 0.875rem;
-  --radius-2xl: 1.125rem;
-  --radius-3xl: 1.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 0.875rem;
+  --radius-3xl: 1.125rem;
 
-  --shadow-lift: 0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 18px 40px -24px rgba(0, 0, 0, 0.9);
-  --shadow-glow: 0 0 0 1px rgba(109, 93, 246, 0.35),
-    0 22px 60px -28px rgba(109, 93, 246, 0.75);
-
-  --animate-rise: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-pulse-soft: pulse-soft 2.8s ease-in-out infinite;
+  --animate-rise: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-pulse-soft: pulse-soft 3s ease-in-out infinite;
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -66,16 +61,7 @@
     opacity: 1;
   }
   50% {
-    opacity: 0.45;
-  }
-}
-
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
+    opacity: 0.35;
   }
 }
 
@@ -85,7 +71,7 @@
 
 @layer base {
   * {
-    border-color: color-mix(in oklab, white 8%, transparent);
+    border-color: rgba(255, 255, 255, 0.08);
   }
 
   html {
@@ -95,14 +81,14 @@
 
   body {
     background-color: var(--color-ink-950);
-    color: #e8ecf6;
+    color: #ededed;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
   ::selection {
-    background: color-mix(in oklab, var(--color-iris-500) 45%, transparent);
-    color: white;
+    background: #ffffff;
+    color: #000000;
   }
 
   ::-webkit-scrollbar {
@@ -113,18 +99,18 @@
     background: var(--color-ink-950);
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--color-ink-600);
+    background: #2a2a2a;
     border-radius: 99px;
     border: 2px solid var(--color-ink-950);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #313852;
+    background: #3d3d3d;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-iris-400);
+    outline: 2px solid #ffffff;
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 4px;
   }
 
   h1,
@@ -141,43 +127,35 @@
 }
 
 /* ==========================================================================
-   Composite primitives
+   Primitives
    ========================================================================== */
 
 @layer components {
-  /* Glass surface used by nearly every panel in the product */
+  /* Flat panel: one hairline, no gradients, no glow */
   .surface {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in oklab, white 4%, transparent),
-        transparent 42%
-      ),
-      var(--color-ink-850);
-    border: 1px solid color-mix(in oklab, white 8%, transparent);
+    background: var(--color-ink-900);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: var(--radius-2xl);
   }
 
   .surface-flat {
     background: var(--color-ink-900);
-    border: 1px solid color-mix(in oklab, white 7%, transparent);
+    border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: var(--radius-2xl);
   }
 
   .surface-hover {
-    transition: border-color 0.2s ease, transform 0.2s ease,
-      box-shadow 0.25s ease, background-color 0.2s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
   }
   .surface-hover:hover {
-    border-color: color-mix(in oklab, var(--color-iris-400) 45%, transparent);
-    transform: translateY(-2px);
-    box-shadow: 0 24px 60px -34px rgba(109, 93, 246, 0.85);
+    border-color: rgba(255, 255, 255, 0.24);
+    background: #101010;
   }
 
-  /* Page frame: consistent max width + gutters */
+  /* Page frame */
   .frame {
     width: 100%;
-    max-width: 78rem;
+    max-width: 76rem;
     margin-inline: auto;
     padding-inline: 1.25rem;
   }
@@ -187,72 +165,13 @@
     }
   }
 
-  /* Ambient background: faint grid + aurora glow */
-  .ambient {
-    position: relative;
-    isolation: isolate;
-  }
-  .ambient::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -2;
-    background-image: linear-gradient(
-        to right,
-        rgba(255, 255, 255, 0.028) 1px,
-        transparent 1px
-      ),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: radial-gradient(90% 60% at 50% 0%, black, transparent 75%);
-  }
-  .ambient::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -3;
-    background:
-      radial-gradient(
-        42rem 30rem at 12% -6%,
-        rgba(109, 93, 246, 0.3),
-        transparent 65%
-      ),
-      radial-gradient(
-        34rem 26rem at 92% 4%,
-        rgba(22, 201, 184, 0.16),
-        transparent 62%
-      );
-  }
-
-  .gradient-text {
-    background: linear-gradient(
-      100deg,
-      #ffffff 8%,
-      var(--color-iris-300) 48%,
-      var(--color-aqua-300) 92%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .hairline {
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.14),
-      transparent
-    );
-  }
-
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
     padding: 0.25rem 0.625rem;
     font-size: 0.75rem;
     font-weight: 500;
@@ -263,52 +182,57 @@
   .field {
     width: 100%;
     border-radius: var(--radius-xl);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
     padding: 0.625rem 0.875rem;
     font-size: 0.875rem;
-    color: #e8ecf6;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease,
-      background-color 0.18s ease;
+    color: #ededed;
+    transition: border-color 0.15s ease;
   }
   .field::placeholder {
-    color: #6b7488;
+    color: #6b6b6b;
   }
   .field:hover {
-    border-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.24);
   }
   .field:focus {
     outline: none;
-    border-color: var(--color-iris-400);
-    background: rgba(109, 93, 246, 0.07);
-    box-shadow: 0 0 0 4px rgba(109, 93, 246, 0.16);
+    border-color: #ffffff;
   }
 
   .label {
     display: block;
     margin-bottom: 0.375rem;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #98a2ba;
+    color: #8a8a8a;
   }
 
   .muted {
-    color: #98a2ba;
+    color: #9a9a9a;
   }
   .faint {
-    color: #6b7488;
+    color: #6b6b6b;
   }
 
   .num {
     font-variant-numeric: tabular-nums;
   }
 
-  .marquee-track {
-    display: flex;
-    width: max-content;
-    animation: marquee 34s linear infinite;
+  .hairline {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  /* Uppercase section label used across panels */
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8a8a8a;
   }
 }
 

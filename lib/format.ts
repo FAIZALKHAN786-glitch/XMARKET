@@ -68,3 +68,13 @@ export const initialsOf = (name: string) =>
     .join("");
 
 export const pct = (n: number) => `${Math.round(n)}%`;
+
+/**
+ * Round to at most `places` decimals. Used for every value that reaches an
+ * inline style or SVG attribute so the server and client emit byte-identical
+ * markup (and the DOM does not fill up with 30.000000000000004%).
+ */
+export const round = (n: number, places = 2) => {
+  const f = 10 ** places;
+  return Math.round(n * f) / f;
+};

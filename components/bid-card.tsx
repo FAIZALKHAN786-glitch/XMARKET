@@ -16,10 +16,10 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { usd, fromNow } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { scoreToken } from "@/lib/engine";
 import type { Bid, Provider, Requirement, Score } from "@/lib/types";
-import { Avatar, Badge, Button, Rating, StatusBadge } from "./ui/primitives";
+import { Avatar, Badge, Button, Rating, StatusBadge, TimeAgo } from "./ui/primitives";
 import { ScoreBreakdown, ScorePill } from "./ui/score";
 
 export function MilestoneRail({
@@ -40,10 +40,10 @@ export function MilestoneRail({
               <span className="absolute inset-y-0 w-px bg-white/10" />
               <span
                 className={cn(
-                  "relative z-10 mt-1 size-2.5 rounded-full ring-4 ring-ink-850",
+                  "relative z-10 mt-1 size-2.5 rounded-full ring-4 ring-ink-900",
                   i === bid.milestones.length - 1
-                    ? "bg-[var(--color-aqua-400)]"
-                    : "bg-[var(--color-iris-400)]"
+                    ? "bg-white/70"
+                    : "bg-white"
                 )}
               />
             </span>
@@ -95,13 +95,13 @@ export function BidCard({
       className={cn(
         "surface relative overflow-hidden transition",
         selected
-          ? "border-[var(--color-iris-400)]/55 shadow-[0_0_0_1px_rgba(109,93,246,0.35),0_24px_60px_-34px_rgba(109,93,246,0.9)]"
+          ? "border-white/45"
           : "hover:border-white/16",
         className
       )}
     >
       {top && (
-        <div className="flex items-center gap-2 bg-gradient-to-r from-[var(--color-iris-500)]/25 via-[var(--color-aqua-500)]/12 to-transparent px-5 py-1.5 text-[0.6875rem] font-semibold tracking-wide text-[var(--color-iris-300)]">
+        <div className="flex items-center gap-2 border-b border-white/10 px-5 py-1.5 text-[0.6875rem] font-medium tracking-wide text-white/70">
           <Trophy className="size-3" />
           Best compatibility match
         </div>
@@ -117,7 +117,7 @@ export function BidCard({
               className={cn(
                 "mt-1 grid size-5 shrink-0 place-items-center rounded-md border transition",
                 selected
-                  ? "border-[var(--color-iris-400)] bg-[var(--color-iris-500)] text-white"
+                  ? "border-white/45 bg-white text-white"
                   : "border-white/20 text-transparent hover:border-white/40"
               )}
             >
@@ -138,7 +138,7 @@ export function BidCard({
               </h3>
               {provider?.verified && (
                 <BadgeCheck
-                  className="size-4 text-[var(--color-aqua-400)]"
+                  className="size-4 text-white/60"
                   aria-label="Verified provider"
                 />
               )}
@@ -190,7 +190,7 @@ export function BidCard({
           />
           <Metric
             label="Submitted"
-            value={fromNow(bid.createdAt)}
+            value={<TimeAgo iso={bid.createdAt} />}
             icon={<Clock3 className="size-3.5" />}
           />
         </div>
@@ -210,7 +210,7 @@ export function BidCard({
                     className={cn(
                       "chip",
                       covered
-                        ? "border-[var(--color-score-high)]/30 bg-[color-mix(in_oklab,var(--color-score-high)_10%,transparent)] text-[var(--color-score-high)]"
+                        ? "border-white/45/30 bg-white/10 text-white"
                         : "text-white/55"
                     )}
                   >
@@ -225,7 +225,7 @@ export function BidCard({
               })}
             </div>
 
-            <div className="mt-5 grid gap-5 border-t border-white/8 pt-5 lg:grid-cols-[1.1fr_1fr]">
+            <div className="mt-5 grid gap-5 border-t border-white/10 pt-5 lg:grid-cols-[1.1fr_1fr]">
               <div>
                 <p className="mb-3 text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
                   Delivery plan
@@ -240,7 +240,7 @@ export function BidCard({
                   {onInspect && (
                     <button
                       onClick={onInspect}
-                      className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-[var(--color-iris-300)] hover:text-white"
+                      className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-white/75 hover:text-white"
                     >
                       Full breakdown <ChevronRight className="size-3" />
                     </button>
@@ -264,7 +264,7 @@ export function BidCard({
         )}
 
         {(actions || onStatus) && (
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/8 pt-4">
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
             <StatusBadge status={bid.status} />
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {actions}
@@ -324,13 +324,13 @@ function Metric({
   tone,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   icon?: React.ReactNode;
   hero?: boolean;
   tone?: "good" | "bad";
 }) {
   return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.025] px-3 py-2.5">
+    <div className="rounded-xl border border-white/10 bg-white/[0.025] px-3 py-2.5">
       <p className="flex items-center gap-1.5 text-[0.625rem] font-semibold tracking-[0.1em] faint uppercase">
         {icon}
         {label}
@@ -339,8 +339,8 @@ function Metric({
         className={cn(
           "num mt-1 font-semibold",
           hero ? "text-lg text-white" : "text-[0.875rem] text-white/85",
-          tone === "good" && "text-[var(--color-score-high)]",
-          tone === "bad" && "text-[var(--color-score-low)]"
+          tone === "good" && "text-white",
+          tone === "bad" && "text-white/45"
         )}
       >
         {value}

@@ -42,6 +42,7 @@ import {
 } from "./ui/primitives";
 import { ScoreBreakdown } from "./ui/score";
 import { Modal } from "./ui/overlay";
+import type { Tone } from "./ui/primitives";
 
 type SortKey = "compatibility" | "price" | "speed";
 
@@ -155,7 +156,7 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
             </span>
           </div>
 
-          <div className="mt-6 grid gap-px overflow-hidden rounded-2xl border border-white/8 bg-white/8 sm:grid-cols-3">
+          <div className="mt-6 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:grid-cols-3">
             <Stat
               icon={<Wallet className="size-3.5" />}
               label="Budget ceiling"
@@ -197,7 +198,7 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
                     className="flex gap-2.5 text-[0.8125rem] leading-relaxed text-white/80"
                   >
                     <Check
-                      className="mt-0.5 size-3.5 shrink-0 text-[var(--color-score-high)]"
+                      className="mt-0.5 size-3.5 shrink-0 text-white"
                       strokeWidth={3}
                     />
                     {m}
@@ -278,20 +279,20 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
         <aside className="space-y-5 lg:sticky lg:top-24 lg:h-fit">
           <Card>
             <div className="flex items-center gap-3">
-              <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-[var(--color-iris-500)] to-[var(--color-aqua-500)] text-sm font-bold text-ink-950">
+              <span className="grid size-11 place-items-center rounded-lg border border-white/12 bg-white/5 text-[0.8125rem] font-semibold text-white/85">
                 {buyer?.initials}
               </span>
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 truncate text-[0.875rem] font-semibold text-white">
                   {buyer?.company}
-                  <BadgeCheck className="size-3.5 shrink-0 text-[var(--color-aqua-400)]" />
+                  <BadgeCheck className="size-3.5 shrink-0 text-white/60" />
                 </p>
                 <p className="truncate text-xs faint">
                   {buyer?.name} · {buyer?.location}
                 </p>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/8 pt-4 text-center">
+            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
               <MiniStat label="Rating" value={buyer?.rating.toFixed(1) ?? "—"} />
               <MiniStat label="Posted" value={String(buyer?.posted ?? 0)} />
               <MiniStat label="Awarded" value={String(buyer?.awarded ?? 0)} />
@@ -324,14 +325,14 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
                 <Gauge className="size-4" />
                 Open comparison view
               </ButtonLink>
-              <ul className="mt-4 space-y-2 border-t border-white/8 pt-4">
+              <ul className="mt-4 space-y-2 border-t border-white/10 pt-4">
                 {[
                   "Scores are visible to buyers, not to competitors",
                   "Track pending → shortlisted → accepted",
                   "No placement fees in this prototype",
                 ].map((t) => (
                   <li key={t} className="flex gap-2 text-xs muted">
-                    <Check className="mt-0.5 size-3 shrink-0 text-[var(--color-aqua-400)]" />
+                    <Check className="mt-0.5 size-3 shrink-0 text-white/60" />
                     {t}
                   </li>
                 ))}
@@ -379,7 +380,7 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
               <Line
                 label="Fastest delivery"
                 value={fastest ? `${fastest} days` : "—"}
-                tone="aqua"
+                tone="muted"
               />
               <Line
                 label="Spread vs ceiling"
@@ -391,9 +392,9 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
               />
             </dl>
             {lowest > 0 && (
-              <div className="mt-4 border-t border-white/8 pt-4">
+              <div className="mt-4 border-t border-white/10 pt-4">
                 <p className="text-xs leading-relaxed faint">
-                  <Badge tone="aqua">Tip</Badge> Offers near the target price with
+                  <Badge tone="muted">Tip</Badge> Offers near the target price with
                   a realistic schedule outscore the cheapest quote most of the
                   time.
                 </p>
@@ -430,7 +431,7 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
         {inspected && (
           <div className="space-y-6">
             <ScoreBreakdown score={inspected.score} />
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
               <p className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
                 Milestones
               </p>
@@ -446,7 +447,7 @@ export function RequirementDetail({ requirementId }: { requirementId: string }) 
                 ))}
               </ol>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
               <p className="text-[0.6875rem] font-bold tracking-[0.16em] text-white/45 uppercase">
                 Full pitch
               </p>
@@ -479,7 +480,7 @@ function Stat({
   hint?: string;
 }) {
   return (
-    <div className="bg-ink-850 p-4">
+    <div className="bg-ink-900 p-4">
       <p className="flex items-center gap-1.5 text-[0.625rem] font-semibold tracking-[0.12em] faint uppercase">
         {icon}
         {label}
@@ -508,16 +509,15 @@ function Line({
 }: {
   label: string;
   value: string;
-  tone?: "good" | "aqua";
+  tone?: Tone;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="text-white/55">{label}</dt>
       <dd
         className={cn(
-          "num font-semibold text-white",
-          tone === "good" && "text-[var(--color-score-high)]",
-          tone === "aqua" && "text-[var(--color-aqua-300)]"
+          "num font-semibold",
+          tone === "muted" || tone === "bad" ? "text-white/60" : "text-white"
         )}
       >
         {value}

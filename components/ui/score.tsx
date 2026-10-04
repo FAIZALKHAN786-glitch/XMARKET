@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/cn";
 import { scoreToken } from "@/lib/engine";
+import { round } from "@/lib/format";
 import type { Score, ScoreFactor } from "@/lib/types";
 import { Progress } from "./primitives";
 
@@ -20,8 +21,10 @@ export function ScoreRing({
 }) {
   const token = scoreToken(score);
   const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const dash = (Math.max(0, Math.min(100, score)) / 100) * c;
+  const c = round(2 * Math.PI * r);
+  // Two decimals keeps the rendered SVG tidy; the value is a pure function of
+  // an integer score, so it is identical on the server and the client.
+  const dash = Math.round(((Math.max(0, Math.min(100, score)) / 100) * c) * 100) / 100;
 
   return (
     <div
@@ -35,7 +38,7 @@ export function ScoreRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="rgba(255,255,255,0.09)"
+          stroke="rgba(255,255,255,0.12)"
           strokeWidth={stroke}
         />
         <circle
@@ -53,14 +56,14 @@ export function ScoreRing({
       <div className="absolute inset-0 grid place-items-center">
         <span
           className={cn("num font-bold leading-none", token.text)}
-          style={{ fontSize: size * 0.3 }}
+          style={{ fontSize: round(size * 0.3) }}
         >
           {Math.round(score)}
         </span>
         {label && (
           <span
             className="faint mt-0.5 font-semibold tracking-wider uppercase"
-            style={{ fontSize: size * 0.14 }}
+            style={{ fontSize: round(size * 0.14) }}
           >
             {label}
           </span>
@@ -114,7 +117,7 @@ export function FactorBar({ factor }: { factor: ScoreFactor }) {
         value={factor.score}
         className="mt-2"
         barClassName={token.bg}
-        trackClassName="bg-white/7"
+        trackClassName="bg-white/10"
       />
       <p className="mt-1.5 text-xs leading-relaxed faint">{factor.detail}</p>
     </div>
@@ -134,16 +137,16 @@ export function ScoreBreakdown({
         <FactorBar key={factor.key} factor={factor} />
       ))}
       {!compact && (score.strengths.length > 0 || score.risks.length > 0) && (
-        <div className="space-y-2 border-t border-white/8 pt-4">
+        <div className="space-y-2 border-t border-white/10 pt-4">
           {score.strengths.map((s, i) => (
             <p key={`s${i}`} className="flex gap-2 text-xs leading-relaxed text-white/75">
-              <span className="text-[var(--color-score-high)]">▲</span>
+              <span className="text-white">+</span>
               {s}
             </p>
           ))}
           {score.risks.map((r, i) => (
             <p key={`r${i}`} className="flex gap-2 text-xs leading-relaxed text-white/75">
-              <span className="text-[var(--color-score-low)]">▼</span>
+              <span className="text-white/40">−</span>
               {r}
             </p>
           ))}
@@ -175,7 +178,7 @@ export function Sparkline({
       <path
         d={path}
         fill="none"
-        stroke="var(--color-aqua-400)"
+        stroke="rgba(255,255,255,0.55)"
         strokeWidth="4"
         vectorEffect="non-scaling-stroke"
         strokeLinecap="round"

@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { CategoryId } from "@/lib/types";
+import { round } from "@/lib/format";
 
 const MAP: Record<CategoryId, LucideIcon> = {
   manufacturing: Factory,
@@ -40,10 +41,12 @@ export function CategoryMark({
   const Icon = MAP[category] ?? Boxes;
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-transparent text-[var(--color-iris-300)]"
+      className="grid shrink-0 place-items-center rounded-lg border border-white/12 text-white/70"
       style={{ width: size, height: size }}
     >
-      <Icon style={{ width: size * 0.45, height: size * 0.45 }} />
+      <Icon
+        style={{ width: round(size * 0.45), height: round(size * 0.45) }}
+      />
     </span>
   );
 }
