@@ -18,6 +18,7 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { Logo } from "./brand";
 import { NotificationBell, SearchLauncher } from "./header-tools";
+import { OfflineBanner, SystemStatus } from "./system-status";
 import { Avatar, ButtonLink, Segmented } from "./ui/primitives";
 
 const BUYER_NAV = [
@@ -89,6 +90,7 @@ export function SiteHeader() {
         scrolled ? "border-white/10 bg-ink-950/90" : "border-transparent"
       )}
     >
+      <OfflineBanner />
       <div className="frame flex h-16 items-center gap-3">
         <Logo />
 
@@ -118,6 +120,7 @@ export function SiteHeader() {
           <RoleHint />
           <RoleSwitch className="hidden sm:inline-flex" />
 
+          <SystemStatus className="hidden md:block" />
           <SearchLauncher />
           <NotificationBell />
 

@@ -9,8 +9,10 @@ import { useStore } from "@/lib/store";
 import type { Weights } from "@/lib/types";
 import { Button } from "./ui/primitives";
 
+type AxisKey = "budget" | "timeline" | "relevance";
+
 const ROWS: {
-  key: keyof Weights;
+  key: AxisKey;
   label: string;
   hint: string;
   accent: string;
@@ -39,7 +41,7 @@ export function WeightTuner({ className }: { className?: string }) {
   const { weights, setWeights, reset } = useStore();
   const total = weights.budget + weights.timeline + weights.relevance || 1;
 
-  const update = (key: keyof Weights, next: number) => {
+  const update = (key: AxisKey, next: number) => {
     const raw = { ...weights, [key]: next };
     const sum = raw.budget + raw.timeline + raw.relevance || 1;
     setWeights({

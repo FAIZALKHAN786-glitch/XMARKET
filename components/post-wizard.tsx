@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  Wand2,
   BadgeCheck,
   CalendarClock,
   Check,
@@ -22,6 +23,7 @@ import {
 import { cn } from "@/lib/cn";
 import { CATEGORIES, PROVIDERS, REQUIREMENTS } from "@/lib/data";
 import { deadlineLabel, usd } from "@/lib/format";
+import { api, isApiError, type AiMeta } from "@/lib/api-client";
 import { useStore } from "@/lib/store";
 import type { CategoryId } from "@/lib/types";
 import { CategoryIcon, CategoryMark } from "./icons";
@@ -44,7 +46,7 @@ const isoDaysFrom = (n: number) =>
 
 export function PostWizard() {
   const router = useRouter();
-  const { addRequirement, requirements, role } = useStore();
+  const { addRequirement, requirements, role, pushToast } = useStore();
 
   const [step, setStep] = React.useState(0);
   const [category, setCategory] = React.useState<CategoryId>("manufacturing");
@@ -61,6 +63,13 @@ export function PostWizard() {
   const [deadline, setDeadline] = React.useState(isoDaysFrom(60));
   const [closesAt, setClosesAt] = React.useState(isoDaysFrom(14));
   const [touched, setTouched] = React.useState(false);
+  const [publishing, setPublishing] = React.useState(false);
+  const [brief, setBrief] = React.useState("");
+  const [parsing, setParsing] = React.useState(false);
+  const [assumptions, setAssumptions] = React.useState<string[]>([]);
+  const [parseMeta, setParseMeta] = React.useState<
+    (AiMeta & { confidence: number }) | null
+  >(null);
 
   const suggestedTags = React.useMemo(() => {
     const fromCategory = REQUIREMENTS.filter((r) => r.category === category)
@@ -101,10 +110,12 @@ export function PostWizard() {
     setStep((s) => Math.min(2, s + 1));
   };
 
-  const publish = () => {
+  const publish = async () => {
     setTouched(true);
     if (errors.length) return;
-    const id = addRequirement({
+    setPublishing(true);
+    try {
+      const { id } = await addRequirement({
       title: title.trim(),
       summary: summary.trim(),
       description:
@@ -122,7 +133,61 @@ export function PostWizard() {
           ? mustHaves
           : ["Details confirmed on award"],
     });
-    router.push(`/market/${id}`);
+      router.push(`/market/${id}`);
+    } catch {
+      // The store shows the server's validation message; keep the wizard state.
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  /** Fills the whole wizard from a pasted brief, then leaves every field editable. */
+  const applyBrief = async () => {
+    if (brief.trim().length < 20) {
+      pushToast({
+        title: "Add a bit more detail",
+        body: "Paste at least a sentence or two describing what you need.",
+        tone: "warn",
+      });
+      return;
+    }
+    setParsing(true);
+    setParseMeta(null);
+    try {
+      const { draft, meta } = await api.ai.parseRequirement(brief.trim(), {
+        category,
+      });
+      setCategory(draft.category as CategoryId);
+      setTitle(draft.title);
+      setSummary(draft.summary);
+      setDescription(draft.description);
+      setLocation(draft.location);
+      setTags(draft.tags);
+      setMustHaves(draft.mustHaves);
+      setBudgetMax(draft.budgetMax);
+      setBudgetTarget(draft.budgetTarget);
+      setDeadline(draft.deadline.slice(0, 10));
+      setClosesAt(draft.closesAt.slice(0, 10));
+      setAssumptions(draft.assumptions);
+      setParseMeta({ ...meta, confidence: draft.confidence });
+      setStep(0);
+      pushToast({
+        title:
+          meta.mode === "llm"
+            ? "Draft filled in by the model"
+            : "Draft filled in offline",
+        body: "Check the budget and dates before publishing — they were inferred.",
+        tone: "default",
+      });
+    } catch (error) {
+      pushToast({
+        title: "Could not read that brief",
+        body: isApiError(error) ? error.message : undefined,
+        tone: "error",
+      });
+    } finally {
+      setParsing(false);
+    }
   };
 
   const addTag = (raw: string) => {
@@ -211,6 +276,86 @@ export function PostWizard() {
       <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         {/* --------------------------------------------------- form column */}
         <div className="space-y-5">
+          {step === 0 && (
+            <Card>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-[1.0625rem] font-semibold text-white">
+                    <Sparkles className="size-4 text-white/70" />
+                    Start from a written brief
+                  </h2>
+                  <p className="mt-1.5 max-w-lg text-[0.8125rem] leading-relaxed muted">
+                    Paste the requirement however you would write it in an email.
+                    The parser proposes a category, budget, deadlines, spec tags
+                    and must-haves — every field stays editable, and you can
+                    ignore it and fill the form by hand.
+                  </p>
+                </div>
+                {parseMeta && (
+                  <Badge tone={parseMeta.mode === "llm" ? "outline" : "muted"}>
+                    {parseMeta.mode === "llm"
+                      ? `${parseMeta.provider} · ${Math.round(parseMeta.confidence * 100)}% confidence`
+                      : `offline parser · ${Math.round(parseMeta.confidence * 100)}% confidence`}
+                  </Badge>
+                )}
+              </div>
+
+              <textarea
+                rows={5}
+                value={brief}
+                onChange={(e) => setBrief(e.target.value)}
+                placeholder="We need 2,000 injection moulded ABS enclosures for a handheld sensor, matte black, RoHS compliant, budget around $9,000 and no more than $12,000, first articles in 3 weeks, full delivery in 8 weeks. Prefer a domestic moulder."
+                className="field mt-4 resize-y leading-relaxed"
+                aria-label="Describe your requirement"
+              />
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button onClick={applyBrief} disabled={parsing} variant="secondary">
+                  <Wand2 className="size-4" />
+                  {parsing ? "Reading…" : "Fill the form from this brief"}
+                </Button>
+                {(title || tags.length > 0) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setBrief("");
+                      setParseMeta(null);
+                      setAssumptions([]);
+                      setTitle("");
+                      setSummary("");
+                      setDescription("");
+                      setTags([]);
+                      setMustHaves([]);
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Clear
+                  </Button>
+                )}
+                {parseMeta?.note && (
+                  <span className="text-xs faint">{parseMeta.note}</span>
+                )}
+              </div>
+
+              {assumptions.length > 0 && (
+                <div className="mt-4 rounded-xl border border-white/12 bg-white/5 p-3.5">
+                  <p className="text-[0.75rem] font-medium text-white/80">
+                    What the parser assumed — confirm these
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {assumptions.map((a) => (
+                      <li key={a} className="flex gap-2 text-xs leading-relaxed muted">
+                        <Info className="mt-0.5 size-3 shrink-0" />
+                        {a}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Card>
+          )}
+
           {step === 0 && (
             <Card>
               <h2 className="text-[1.0625rem] font-semibold text-white">
@@ -597,9 +742,9 @@ export function PostWizard() {
                 <ArrowRight className="size-4" />
               </Button>
             ) : (
-              <Button size="lg" onClick={publish}>
+              <Button size="lg" onClick={publish} disabled={publishing}>
                 <Send className="size-4" />
-                Publish requirement
+                {publishing ? "Publishing…" : "Publish requirement"}
               </Button>
             )}
             <span className="text-xs faint">

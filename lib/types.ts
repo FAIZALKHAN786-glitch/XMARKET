@@ -92,7 +92,8 @@ export interface Bid {
 }
 
 export interface ScoreFactor {
-  key: "budget" | "timeline" | "relevance";
+  /** `semantic` is only present on blended rows — see Weights.semantic. */
+  key: "budget" | "timeline" | "relevance" | "semantic";
   label: string;
   /** 0 – 100 for this factor. */
   score: number;
@@ -113,4 +114,10 @@ export interface Weights {
   budget: number;
   timeline: number;
   relevance: number;
+  /**
+   * Optional fourth axis: the AI-judged semantic fit between a proposal and
+   * the requirement. Zero (or absent) means the deterministic three-factor
+   * engine alone decides the ranking.
+   */
+  semantic?: number;
 }

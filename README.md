@@ -15,12 +15,19 @@ A needs-first reverse marketplace where buyers post custom requirements (budget,
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
-npm run build   # production build
-npm start       # serve the production build
+cp .env.example .env.local   # optional: add one LLM key (see below)
+npm run dev                  # http://localhost:3000
+npm run build && npm start   # production build
 ```
 
-The app ships with a seeded demo dataset (8 requirements, 16 offers, 8 providers) so every screen is populated on first load. State lives in React context and is mirrored to `localStorage`, so posting a requirement, submitting a bid, shortlisting or awarding all persist across reloads. Use the **role switch** in the header to move between the buyer and provider experiences.
+The app ships with a seeded demo dataset (8 requirements, 17 offers, 8 providers). Everything the UI does now goes through the REST API in `app/api` and is persisted to `data/xmarket.json`, so posting a requirement, submitting a bid, shortlisting or awarding survives a reload **and** a server restart. Use the **role switch** in the header to move between the buyer and provider experiences.
+
+```bash
+npm run api:smoke   # 35 checks against a running server: CRUD, rules, ranking, errors
+npm run ai:check    # reports, per AI capability, whether the live model or the offline fallback answered
+```
+
+Both expect the server on `http://127.0.0.1:3000` (`BASE_URL` overrides it). The smoke suite exercises real writes, then restores the seeded dataset at the end, so it is safe to re-run.
 
 ---
 
@@ -130,18 +137,107 @@ Default weights are `0.35 / 0.30 / 0.35` and are tunable per requirement from th
 ## 🛠️ Tech Stack
 
 - **Frontend:** Next.js (App Router) / React 19 / TypeScript / Tailwind CSS v4 / Lucide Icons
-- **State:** React context store with `localStorage` persistence (swappable for a real API)
+- **Backend:** Next.js route handlers (`app/api`) on the Node runtime, zod-validated input, envelope responses
+- **Persistence:** single JSON document behind a serialised write queue (`lib/server/db.ts`), no native deps
+- **AI:** provider-agnostic chat client (`lib/server/llm.ts`) — OpenAI, Anthropic, Gemini, Groq, OpenRouter or a local Ollama, with a deterministic fallback for every capability
+- **State:** React context store that treats the API as the source of truth, with optimistic writes and rollback
 - **Domain logic:** framework-agnostic engine + formatters in `lib/`
-- **Planned backend:** Node/Express or FastAPI, PostgreSQL/MongoDB, JWT/NextAuth
 
 ### Project structure
 
 ```
 app/                routes (landing, market, compare, dashboard, post, proposals, 404)
+app/api/            17 route handlers — requirements, bids, providers, stats, events, AI, health
 components/         feature components (feed, bid cards, compare matrix, wizards, dashboards)
 components/ui/      design-system primitives, score visualisations, overlays
-lib/                types, seed data, matching engine, formatters, store
+lib/                types, seed data, matching engine, formatters, store, typed API client
+lib/server/         db, schema (zod), repo (queries + ranking), http (envelope, errors), llm, ai
+scripts/            api-smoke.sh, ai-check.mjs, mock-llm.mjs
+data/               xmarket.json — the live store (git-ignored, seeded on first write)
 ```
+
+---
+
+## 🔌 Backend & API
+
+Every screen reads and writes through the API — there is no client-only demo state left. Responses use one envelope so the client can handle failures uniformly:
+
+```jsonc
+{ "ok": true,  "data": { /* ... */ } }
+{ "ok": false, "error": { "code": "unprocessable", "message": "Offer exceeds the buyer's ceiling by $4,200", "details": { "budgetMax": 120000, "price": 124200 } } }
+```
+
+`bad_request` (400) · `not_found` (404) · `conflict` (409) · `unprocessable` (422) · `rate_limited` (429) · `ai_unavailable` · `internal`
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | Liveness, DB path, whether AI is live |
+| `GET` | `/api/bootstrap` | Everything the shell needs in one round trip: buyers, providers, requirements, bids |
+| `GET` | `/api/requirements` | Filter (`q`, `category`, `status`, `buyerId`, budget range, `closingWithinDays`, `savedIds`), sort, paginate |
+| `GET` | `/api/requirements/:id` | Requirement + buyer + its offers, already ranked (bumps the view count) |
+| `POST` | `/api/requirements` | Publish a requirement |
+| `PATCH` | `/api/requirements/:id` | Move status (`open` → `closed` → `awarded`) |
+| `GET` | `/api/requirements/:id/bids` | Offers with server-computed compatibility scores |
+| `POST` | `/api/requirements/:id/bids` | Submit an offer |
+| `GET` | `/api/requirements/:id/compare` | Ranked offers + decision metrics + benchmarks for the matrix |
+| `GET` | `/api/bids` | Offers by requirement/provider/status |
+| `PATCH` | `/api/bids/:id` | Shortlist, decline or accept — accepting declines the siblings in one transaction |
+| `GET` | `/api/providers` | Provider directory |
+| `GET` | `/api/stats` | Buyer or provider dashboard aggregates |
+| `GET` | `/api/events` | Audit trail (`requirement.created`, `bid.status`, `ai.invoked`, …) |
+| `POST` | `/api/admin/reset` | Restore the seeded demo set (`?scope=data\|ai-cache\|all`) — production-blocked unless `XMARKET_ALLOW_RESET=true` |
+
+**Business rules live on the server, not in the browser.** An offer above the buyer's ceiling, a delivery date past the deadline, a second live offer from the same provider, or a bid on an awarded requirement are all rejected with a message the UI shows verbatim. Ranking is computed server-side by the same pure engine the UI imports, so the numbers can never disagree.
+
+**Persistence.** `lib/server/db.ts` keeps one JSON document in memory and writes it through a serialised queue (atomic temp-file rename), so concurrent requests cannot interleave a read-modify-write. If the file ever becomes unwritable the API keeps serving from memory and says so instead of failing. Swapping this module for Postgres means reimplementing `lib/server/repo.ts`, nothing else.
+
+---
+
+## 🧠 AI & LLM integration
+
+Four capabilities sit on top of the deterministic engine. Each one is a prompt plus a deterministic fallback — **the fallback is not a placeholder**, and every response carries metadata saying which one answered.
+
+| Capability | Endpoint | What it does |
+| --- | --- | --- |
+| Parse a brief | `POST /api/ai/parse-requirement` | Turns a paragraph into category, budget window, deadline, location, tags and must-haves |
+| Judge an offer | `POST /api/ai/score-bid` | 0–100 semantic fit for one proposal, with what it addresses and what it skips |
+| Draft a proposal | `POST /api/ai/draft-bid` | A provider-side pitch, milestones, tag coverage and risks for one requirement |
+| Explain a shortlist | `POST /api/ai/summarize` | Headline, recommendation, trade-offs and things to verify before awarding |
+
+Responses look like `{ "data": …, "meta": { "provider": "openai", "model": "gpt-4o-mini", "mode": "llm", "cached": false, "latencyMs": 812 } }`. `mode` is `llm` when a model answered and `heuristic` when the built-in fallback did.
+
+### Configure a provider
+
+Copy `.env.example` to `.env.local` and set **one** key. The provider is auto-detected in this order, and `AI_PROVIDER` overrides the guess:
+
+| Provider | Variable | Default model |
+| --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
+| Anthropic | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-latest` |
+| Google Gemini | `GEMINI_API_KEY` | `gemini-2.0-flash` |
+| Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
+| OpenRouter | `OPENROUTER_API_KEY` | `openai/gpt-4o-mini` |
+| Ollama (local) | `OLLAMA_BASE_URL` | `llama3.1` |
+
+With no key the app runs **offline**: every AI surface still produces a real answer from the heuristic engine and labels it as such. Env files are read at boot, so restart `npm run dev` after editing them.
+
+### Deliberate guard rails
+
+- **AI runs only on user action.** No page view, scroll or filter change ever spends tokens; every AI surface has a button, and the defaults are deterministic.
+- **Cost control.** Replies are cached in the database by prompt hash, keyed by provider *and* model, so re-opening a panel costs nothing and switching models cannot serve a stale answer. Each request has a timeout (`LLM_TIMEOUT_MS`, default 30s) and a per-route rate limit.
+- **Nothing unvalidated reaches the UI.** Every model reply is parsed against a zod schema; junk, truncation or a fenced code block around the JSON falls back to the heuristic rather than rendering garbage. Prompts are injected with user text wrapped in `untrusted(...)` so supplier copy cannot be read as instructions.
+- **The model never decides anything.** It annotates: it cannot award a contract, change a status or overwrite a compatibility score. Deterministic ranking stays authoritative, and a buyer can blend the model's read in explicitly (`?wSemantic=0.25`, or **Blend AI fit** in the comparison workspace) — that blended ranking is computed server-side and labelled with its provider, model and latency.
+- **Transparency in the UI.** The status chip in the header reports API and model availability; if the API is down an offline banner says so, and if no key is set the panels say "offline analysis" rather than implying a model answered.
+
+### Verifying it
+
+```bash
+npm run ai:check                       # per-capability MODE / provider / latency report
+node scripts/mock-llm.mjs              # OpenAI-compatible mock on :4010, no key needed
+# then in .env.local: OPENAI_API_KEY=mock-key OPENAI_BASE_URL=http://127.0.0.1:4010/v1
+```
+
+`scripts/mock-llm.mjs` answers each prompt shape and wraps every third reply in prose and ```json fences, which is what proves the extraction path. `npm run ai:check` prints `MODEL` only when a real provider answered end to end; `HEURISTIC` means no key is configured.
 
 ---
 

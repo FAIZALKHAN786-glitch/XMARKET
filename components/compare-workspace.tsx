@@ -22,18 +22,21 @@ import {
   Layers,
   X,
 } from "lucide-react";
+import { api, isApiError, type SemanticBlendMeta } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { CATEGORIES } from "@/lib/data";
 import { rankBids, scoreToken } from "@/lib/engine";
 import { dateLabel, usd } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import type { Bid, Provider, Requirement, Score, Weights } from "@/lib/types";
+import { AiSummaryPanel } from "./ai-summary";
 import { MilestoneRail } from "./bid-card";
 import type { Tone } from "./ui/primitives";
 import { CategoryMark } from "./icons";
 import { WeightsPanel } from "./weights-panel";
 import {
   Avatar,
+  Badge,
   Button,
   ButtonLink,
   Card,
@@ -49,7 +52,14 @@ type Row = {
   bid: Bid;
   provider?: Provider;
   score: Score;
+  /** Model-judged fit, present only on a blended ranking. */
+  semantic?: number | null;
 };
+
+const SEMANTIC_WEIGHT = 0.25;
+
+const weightKey = (w: Weights) =>
+  `${w.budget.toFixed(3)}/${w.timeline.toFixed(3)}/${w.relevance.toFixed(3)}`;
 
 export function CompareWorkspace({ requirementId }: { requirementId: string }) {
   const {
@@ -59,6 +69,7 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
     weights,
     setBidStatus,
     meBuyerId,
+    pushToast,
   } = useStore();
 
   const requirement = requirements.find((r) => r.id === requirementId);
@@ -66,6 +77,26 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
   const [detail, setDetail] = React.useState<Row | null>(null);
   const [awardOpen, setAwardOpen] = React.useState(false);
   const [awarded, setAwarded] = React.useState<string | null>(null);
+
+  // AI-fit blend: off until asked for. Turning it on asks the server for a
+  // ranking that mixes the model's read of each pitch into the total; the
+  // deterministic engine still owns the default view.
+  const [aiRows, setAiRows] = React.useState<Row[] | null>(null);
+  const [aiMeta, setAiMeta] = React.useState<SemanticBlendMeta | null>(null);
+  const [aiBusy, setAiBusy] = React.useState(false);
+  // The blend belongs to one requirement at one set of weights: change either
+  // and the deterministic ranking takes over again rather than showing a
+  // stale, server-ranked view.
+  const [aiFor, setAiFor] = React.useState<string | null>(null);
+
+  const blendKey = `${requirementId}:${weightKey(weights)}`;
+  React.useEffect(() => {
+    if (aiRows && aiFor && aiFor !== blendKey) {
+      setAiRows(null);
+      setAiMeta(null);
+      setAiFor(null);
+    }
+  }, [aiRows, aiFor, blendKey]);
 
   if (!requirement) {
     return (
@@ -84,12 +115,66 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
     );
   }
 
-  const ranked = rankBids(
-    bids.filter((b) => b.requirementId === requirement.id),
-    requirement,
-    providers,
-    weights
+  const ranked: Row[] = (
+    aiRows ??
+    rankBids(
+      bids.filter((b) => b.requirementId === requirement.id),
+      requirement,
+      providers,
+      weights
+    )
   ).filter((r) => !excluded.includes(r.bid.id));
+
+  const blend = async () => {
+    setAiBusy(true);
+    try {
+      const result = await api.compare(requirement.id, {
+        ...weights,
+        semantic: SEMANTIC_WEIGHT,
+      });
+      const rows: Row[] = result.ranked.map((row) => ({
+        bid: row.bid,
+        provider: row.provider,
+        semantic: row.semantic,
+        score: row.semantic == null
+          ? row.score
+          : {
+              ...row.score,
+              factors: [
+                ...row.score.factors,
+                {
+                  key: "semantic",
+                  label: "AI fit",
+                  score: row.semantic,
+                  weight: SEMANTIC_WEIGHT,
+                  detail:
+                    "The model's read of how directly this pitch answers the brief. Blended at 25%.",
+                },
+              ],
+            },
+      }));
+      setAiRows(rows);
+      setAiMeta(result.semanticMeta);
+      setAiFor(blendKey);
+      const meta = result.semanticMeta;
+      pushToast({
+        title: "AI fit blended into the ranking",
+        body: meta
+          ? meta.mode === "llm"
+            ? `${meta.scoredBids} of ${meta.requestedBids} offers scored by ${meta.provider} · ${meta.model}.`
+            : "No model answered, so the offline heuristic judged the pitches instead."
+          : "Ranking recomputed with semantic weighting.",
+        tone: meta?.mode === "llm" ? "success" : "warn",
+      });
+    } catch (err) {
+      const message = isApiError(err)
+        ? err.message
+        : "Could not reach the ranking service";
+      pushToast({ title: "AI blend unavailable", body: message, tone: "error" });
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const isOwner = requirement.buyerId === meBuyerId;
   const category = CATEGORIES.find((c) => c.id === requirement.category)!;
@@ -216,6 +301,17 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
         </div>
       )}
 
+      {/* ------------------------------------------------------ AI read */}
+      <AiSummaryPanel
+        className="mt-6"
+        requirementId={requirement.id}
+        weights={weights}
+        offerCount={ranked.length}
+        providerNames={Object.fromEntries(
+          ranked.map((r) => [r.bid.providerId, r.provider?.name ?? r.bid.providerId])
+        )}
+      />
+
       {/* ------------------------------------------------- top summary */}
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:grid-cols-3">
@@ -247,6 +343,59 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
         <WeightsPanel />
       </div>
 
+      {/* ------------------------------------------------ AI fit weighting */}
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-white/10 bg-white/[0.015] px-4 py-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/5 text-white/70">
+          <Sparkles className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[0.8125rem] font-semibold text-white">
+            AI fit weighting
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed muted">
+            {aiMeta
+              ? aiMeta.note
+              : `Mixes the model's read of each pitch into the compatibility score at ${Math.round(
+                  SEMANTIC_WEIGHT * 100
+                )}%. Off by default — running it sends this brief and its live offers to the model.`}
+          </p>
+        </div>
+        {aiMeta && (
+          <Badge tone={aiMeta.mode === "llm" ? "outline" : "muted"}>
+            {aiMeta.mode === "llm"
+              ? `${aiMeta.provider} · ${aiMeta.model}${aiMeta.cached ? " · cached" : ` · ${aiMeta.latencyMs}ms`}`
+              : "offline analysis"}
+          </Badge>
+        )}
+        <div className="flex items-center gap-2">
+          {aiRows && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setAiRows(null);
+                setAiMeta(null);
+                setAiFor(null);
+              }}
+            >
+              Reset
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant={aiRows ? "secondary" : "outline"}
+            disabled={aiBusy}
+            onClick={blend}
+          >
+            {aiBusy
+              ? "Scoring offers…"
+              : aiRows
+                ? "Re-run AI fit"
+                : "Blend AI fit"}
+          </Button>
+        </div>
+      </div>
+
       {/* ------------------------------------------------- matrix */}
       <section className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -255,8 +404,10 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
               Offer matrix
             </h2>
             <p className="mt-1 text-[0.8125rem] muted">
-              {columns.length} offers compared across 9 decision factors. Scroll
-              horizontally on small screens.
+              {columns.length} offers compared across{" "}
+              {aiRows ? "10 decision factors, AI fit included" : "9 decision factors"}.
+              {aiRows ? " Server-ranked. " : " "}
+              Scroll horizontally on small screens.
             </p>
           </div>
           {excluded.length > 0 && (
@@ -453,6 +604,42 @@ export function CompareWorkspace({ requirementId }: { requirementId: string }) {
                     />
                   )}
                 />
+                {aiRows && (
+                  <MatrixRow
+                    label="AI fit"
+                    icon={<Sparkles className="size-3.5" />}
+                    columns={columns}
+                    render={(row) => {
+                      if (row.semantic == null) {
+                        return (
+                          <span className="text-xs faint">
+                            not scored — deterministic total kept
+                          </span>
+                        );
+                      }
+                      const token = scoreToken(row.semantic);
+                      return (
+                        <span className="flex flex-col gap-1.5">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className={cn("num font-semibold", token.text)}>
+                              {row.semantic}
+                            </span>
+                            <span className="num text-[0.625rem] faint">
+                              ×{SEMANTIC_WEIGHT.toFixed(2)}
+                            </span>
+                          </span>
+                          <Progress
+                            value={row.semantic}
+                            barClassName={token.bg}
+                          />
+                          <span className="text-[0.6875rem] leading-relaxed faint">
+                            model&rsquo;s read of the pitch
+                          </span>
+                        </span>
+                      );
+                    }}
+                  />
+                )}
                 <MatrixRow
                   label="Tag coverage"
                   columns={columns}

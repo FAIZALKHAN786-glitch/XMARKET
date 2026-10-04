@@ -8,7 +8,9 @@ import { useStore } from "@/lib/store";
 import type { Weights } from "@/lib/types";
 import { Button } from "./ui/primitives";
 
-const ROWS: { key: keyof Weights; label: string; color: string }[] = [
+type AxisKey = "budget" | "timeline" | "relevance";
+
+const ROWS: { key: AxisKey; label: string; color: string }[] = [
   { key: "budget", label: "Budget", color: "#ffffff" },
   { key: "timeline", label: "Timeline", color: "#9a9a9a" },
   { key: "relevance", label: "Relevance", color: "#5c5c5c" },
@@ -25,7 +27,7 @@ export function WeightsPanel({ className }: { className?: string }) {
   const { weights, setWeights } = useStore();
   const total = weights.budget + weights.timeline + weights.relevance || 1;
 
-  const update = (key: keyof Weights, value: number) => {
+  const update = (key: AxisKey, value: number) => {
     const raw = { ...weights, [key]: value + 0.0001 };
     const sum = raw.budget + raw.timeline + raw.relevance || 1;
     setWeights({
