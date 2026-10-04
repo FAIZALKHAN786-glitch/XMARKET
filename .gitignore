@@ -27,3 +27,7 @@ yarn-error.log*
 
 # ts build info
 tsconfig.tsbuildinfo
+
+# runtime database (seeded on first boot)
+/data/*.json
+/data/*.tmp
