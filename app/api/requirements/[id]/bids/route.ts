@@ -1,5 +1,6 @@
 import { daysUntil } from "@/lib/engine";
 import { scoreBidsForBlend } from "@/lib/server/ai";
+import { assertSellerForProvider } from "@/lib/server/authz";
 import { ApiError, clientKey, ok, rateLimit, readBody, readQuery, route } from "@/lib/server/http";
 import {
   createBid,
@@ -87,7 +88,10 @@ export const POST = route(async (request: Request, ctx: Ctx) => {
     );
   }
 
-  const providerId = input.providerId ?? "p_me";
+  // A seller may only bid as their own merchant ID. Otherwise one seller could
+  // submit under another's identity and borrow their performance score.
+  const account = await assertSellerForProvider(input.providerId ?? "p_me");
+  const providerId = account.merchantId!;
   const provider = await getProvider(providerId);
   if (!provider) throw new ApiError("not_found", `Unknown provider ${providerId}`);
 

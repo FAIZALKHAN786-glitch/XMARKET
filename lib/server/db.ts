@@ -119,6 +119,31 @@ CREATE INDEX IF NOT EXISTS bids_requirement_id_idx ON bids (requirement_id);
 CREATE INDEX IF NOT EXISTS requirements_status_idx ON requirements (status);
 CREATE INDEX IF NOT EXISTS requirements_category_idx ON requirements (category);
 
+-- One live offer per provider per requirement, enforced by the database rather
+-- than by an application check that a second concurrent request could slip
+-- past. Withdrawn offers are excluded so a provider can re-bid after withdrawing.
+CREATE UNIQUE INDEX IF NOT EXISTS bids_one_live_offer_per_provider
+  ON bids (requirement_id, provider_id)
+  WHERE status <> 'rejected';
+
+-- Money and deadline invariants. These are already validated on the way in,
+-- but a constraint here means no code path — import, migration, or a future
+-- route that forgets — can persist an impossible record.
+DO $$ BEGIN
+  ALTER TABLE bids ADD CONSTRAINT bids_price_positive CHECK (price > 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE requirements
+    ADD CONSTRAINT requirements_budget_positive CHECK (budget_max > 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE requirements
+    ADD CONSTRAINT requirements_target_within_ceiling
+    CHECK ((doc->>'budgetTarget')::numeric <= budget_max);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 CREATE TABLE IF NOT EXISTS events (
   id  text PRIMARY KEY,
   at  timestamptz NOT NULL,

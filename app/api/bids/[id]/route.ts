@@ -1,6 +1,7 @@
 import { ApiError, ok, readBody, route } from "@/lib/server/http";
 import { getBid, getRequirement, listProviders, rank, setBidStatus } from "@/lib/server/repo";
 import { bidStatusPatch } from "@/lib/server/schema";
+import { assertOwnsBid } from "@/lib/server/authz";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,11 @@ export const GET = route(async (_request: Request, ctx: Ctx) => {
 export const PATCH = route(async (request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const { status, actor } = await readBody(request, bidStatusPatch);
+
+  // Only the buyer who posted the requirement may change an offer's status.
+  // Without this, anyone holding a bid id could award their own offer — the
+  // bid id is not a secret, it appears in every listing response.
+  await assertOwnsBid(id);
 
   const result = await setBidStatus(id, status, actor ?? "buyer");
   if (!result.ok) {
