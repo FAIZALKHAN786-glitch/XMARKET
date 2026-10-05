@@ -111,7 +111,7 @@ function buildConfig(
       return {
         provider,
         apiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
-        model: pick("GEMINI_MODEL", "gemini-2.5-flash"),
+        model: pick("GEMINI_MODEL", "gemini-3.8-flash"),
         baseUrl: pick(
           "GEMINI_BASE_URL",
           "https://generativelanguage.googleapis.com/v1beta"
@@ -512,6 +512,12 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
 
   if (c.provider === "gemini") {
     const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+    // 3.x replaced the numeric thinking_budget with the thinkingLevel enum and
+    // deprecated the sampling parameters: temperature/topP/topK are ignored or
+    // rejected there, and Google's migration guide says to strip them. `low`
+    // suits this workload — extraction, scoring and short copy — where latency
+    // matters more than depth, and `minimal` is invalid on 3.7 Flash and up.
+    const isGemini3 = /^(?:gemini-)?3(?:[.-]|$)/.test(c.model);
     return {
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
       contents: messages
@@ -521,7 +527,9 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
           parts: [{ text: m.content }],
         })),
       generationConfig: {
-        temperature,
+        ...(isGemini3 ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
+        // Sampling parameters were deprecated on 3.x; the default is used instead.
+        ...(isGemini3 ? {} : { temperature }),
         maxOutputTokens: maxTokens,
         responseMimeType: options.schema ? "application/json" : "text/plain",
       },
