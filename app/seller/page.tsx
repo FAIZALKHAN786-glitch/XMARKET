@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
+import { Copilot } from "@/components/copilot";
 import { deadlineLabel, usd } from "@/lib/format";
 
 /**
@@ -42,6 +43,10 @@ export default function SellerPage() {
           {merchantId}
         </p>
       )}
+
+      <div className="mt-8 max-w-2xl">
+        <Copilot />
+      </div>
 
       {/* ------------------------------------------------------- notifications */}
       {(() => {

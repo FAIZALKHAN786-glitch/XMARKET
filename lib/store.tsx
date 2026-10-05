@@ -291,7 +291,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       buyers,
       events,
       saved: prefs.saved,
-      role: prefs.role,
+      // A signed-in user's role is a fact about their account, not a preference.
+      // Letting the header toggle flip it let a seller see buyer-only actions.
+      role: account ? (account.role === "seller" ? "provider" : "buyer") : prefs.role,
       weights: prefs.weights,
       hydrated,
       synced,

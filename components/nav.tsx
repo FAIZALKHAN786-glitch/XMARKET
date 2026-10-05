@@ -34,7 +34,10 @@ const PROVIDER_NAV = [
 ];
 
 export function RoleSwitch({ className }: { className?: string }) {
-  const { role, setRole } = useStore();
+  const { role, setRole, account } = useStore();
+  // Signed in, the role comes from the account and cannot be toggled.
+  if (account) return null;
+
   return (
     <Segmented
       size="sm"
