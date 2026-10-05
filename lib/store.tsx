@@ -189,6 +189,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refresh]);
 
+  /* -------------------------------------------------------- live updates */
+
+  // Server-sent events. The stream only says that something changed, so the
+  // response is a refetch; bursts are coalesced so a bulk import does not
+  // trigger one request per record.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return;
+    }
+
+    let timer: number | undefined;
+    let source: EventSource | undefined;
+
+    const scheduleRefresh = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        void refresh();
+      }, 250);
+    };
+
+    try {
+      source = new EventSource("/api/stream");
+      for (const type of [
+        "requirement.created",
+        "requirement.status",
+        "bid.created",
+        "bid.status",
+        "db.seeded",
+      ]) {
+        source.addEventListener(type, scheduleRefresh);
+      }
+      source.onerror = () => {
+        // EventSource reconnects by itself; the offline banner is driven by
+        // refresh() failing, so there is nothing to do here.
+      };
+    } catch {
+      /* No streaming support — polling on user actions still works. */
+    }
+
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      source?.close();
+    };
+  }, [refresh]);
+
   /* ----------------------------------------------------------------- toasts */
 
   const pushToast = useCallback((toast: Omit<Toast, "id">) => {

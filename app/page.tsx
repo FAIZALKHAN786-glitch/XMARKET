@@ -31,16 +31,53 @@ import {
   Card,
   SectionHeading,
 } from "@/components/ui/primitives";
-import { CATEGORIES, PROVIDERS, REQUIREMENTS } from "@/lib/data";
+import { CATEGORIES } from "@/lib/data";
+import { listBids, listProviders, listRequirements } from "@/lib/server/repo";
 import { usd } from "@/lib/format";
 
-export default function HomePage() {
+// Reads the store, so it cannot be statically rendered at build time.
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  // Every figure on this page is read from the store. The previous version
+  // hard-coded "3,184 verified providers", "42 min to first offer" and
+  // "23% average saving" and derived the requirement count from
+  // `REQUIREMENTS.length * 47 + 12`. A marketplace that shows invented numbers
+  // is worse than one that shows zero, because zero is at least true.
+  const [requirements, providers, bids] = await Promise.all([
+    listRequirements(),
+    listProviders(),
+    listBids(),
+  ]);
+
+  const openRequirements = requirements.filter((r) => r.status === "open");
+  const liveValue = openRequirements.reduce((sum, r) => sum + r.budgetMax, 0);
+
   const stats = [
-    { label: "Open requirements", value: REQUIREMENTS.length * 47 + 12, suffix: "" },
-    { label: "Verified providers", value: 3184, suffix: "" },
-    { label: "Median time to first offer", value: 42, suffix: " min" },
-    { label: "Avg. saving vs. list price", value: 23, suffix: "%" },
+    {
+      label: "Open requirements",
+      value: openRequirements.length.toLocaleString(),
+      suffix: "",
+    },
+    {
+      label: "Verified providers",
+      value: providers.filter((p) => p.verified).length.toLocaleString(),
+      suffix: "",
+    },
+    {
+      label: "Offers received",
+      value: bids.length.toLocaleString(),
+      suffix: "",
+    },
+    {
+      label: "Live procurement value",
+      value: usd(liveValue, { compact: true }),
+      suffix: "",
+    },
   ];
+
+  // Real providers from the store, not a hard-coded slice of the demo seed.
+  const featuredProviders = providers.filter((p) => p.verified).slice(0, 4);
 
   return (
     <div className="pb-8">
@@ -86,7 +123,7 @@ export default function HomePage() {
             {stats.map((stat) => (
               <div key={stat.label} className="bg-ink-900 px-5 py-6 text-center">
                 <dd className="num text-2xl font-semibold text-white md:text-3xl">
-                  {stat.value.toLocaleString()}
+                  {stat.value}
                   {stat.suffix}
                 </dd>
                 <dt className="mt-1.5 text-[0.75rem] muted">{stat.label}</dt>
@@ -296,7 +333,8 @@ export default function HomePage() {
         />
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {CATEGORIES.map((c) => {
-            const open = REQUIREMENTS.filter((r) => r.category === c.id).length;
+            const open = openRequirements.filter((r) => r.category === c.id)
+              .length;
             return (
               <Card key={c.id} hover className="group">
                 <div className="flex items-start justify-between">
@@ -425,7 +463,12 @@ export default function HomePage() {
           body="Credentials, on-time rates and review history feed directly into relevance scoring — so a great track record is worth real points."
         />
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PROVIDERS.slice(1, 5).map((p) => (
+          {featuredProviders.length === 0 ? (
+            <p className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-10 text-center text-sm muted sm:col-span-2 lg:col-span-4">
+              No verified providers yet. Providers appear here once they register.
+            </p>
+          ) : (
+            featuredProviders.map((p) => (
             <Card key={p.id} hover>
               <div className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-lg border border-white/12 bg-white/5 text-[0.8125rem] font-semibold text-white/85">
@@ -453,7 +496,8 @@ export default function HomePage() {
                 <span className="num faint">{p.onTimeRate}% on time</span>
               </div>
             </Card>
-          ))}
+            ))
+          )}
         </div>
       </section>
 

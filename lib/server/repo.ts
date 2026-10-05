@@ -8,6 +8,7 @@ import type {
   Weights,
 } from "@/lib/types";
 import { getDb, mutate, type AuditEvent } from "./db";
+import { publish } from "./stream";
 
 /* ==========================================================================
    Repository — the only module the API routes talk to.
@@ -19,12 +20,20 @@ const uid = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 async function record(event: Omit<AuditEvent, "id" | "at">) {
-  return mutate((db) => {
-    const entry: AuditEvent = { id: uid("ev"), at: new Date().toISOString(), ...event };
-    db.events.unshift(entry);
+  const entry = await mutate((db) => {
+    const created: AuditEvent = {
+      id: uid("ev"),
+      at: new Date().toISOString(),
+      ...event,
+    };
+    db.events.unshift(created);
     db.events = db.events.slice(0, 500);
-    return entry;
+    return created;
   });
+  // Published only after the write has landed, so a client that refetches on
+  // receipt is guaranteed to see the record that caused the event.
+  publish(entry);
+  return entry;
 }
 
 /* ------------------------------------------------------------ requirements */
