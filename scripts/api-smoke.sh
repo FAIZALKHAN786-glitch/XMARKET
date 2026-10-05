@@ -1,11 +1,15 @@
 set -u
 B=http://127.0.0.1:3000
 
-# This suite WRITES to the store: it creates requirements and bids. It finishes
-# by restoring the seeded demo dataset, which is what keeps repeated runs
-# repeatable — but it also removes anything you posted or imported yourself.
-# Pass --keep (or KEEP_DATA=1) to leave the store alone; the records this run
-# created will stay behind.
+# This suite WRITES to the store: it creates the requirements and bids it
+# asserts against, so it does not depend on any pre-seeded records. It only
+# needs the provider `p_me` to exist, because there is no endpoint for creating
+# providers — see the preflight below.
+#
+# It finishes by calling POST /api/admin/reset?scope=all, which restores
+# whatever XMARKET_SEED is set to (empty by default). That keeps repeated runs
+# repeatable but removes anything you posted or imported yourself. Pass --keep
+# (or KEEP_DATA=1) to leave the store alone; this run's records stay behind.
 KEEP=0
 for arg in "$@"; do [ "$arg" = "--keep" ] && KEEP=1; done
 [ "${KEEP_DATA:-0}" = "1" ] && KEEP=1
@@ -19,24 +23,34 @@ check() { # name expected_code actual_code [body]
 code() { curl -s -o /tmp/out.json -w "%{http_code}" "$@"; }
 
 # --------------------------------------------------------------- preflight
-# The bid-lifecycle, AI and compare checks operate on the demo fixture
-# requirement `r_mech` and its offer `bid_mech_atlas`. On an empty store those
-# records do not exist, so ten checks would 404 for reasons that have nothing
-# to do with the code under test. Say so instead of reporting ten failures.
-if [ "$(code "$B/api/requirements/r_mech")" != "200" ]; then
-  printf "\n  Cannot reach the demo fixtures this suite asserts against.\n"
-  printf "  It needs the sample requirement r_mech, which an empty store lacks.\n\n"
-  printf "  Run the server with the sample data and try again:\n\n"
-  printf "    XMARKET_SEED=demo npm run dev     # terminal 1\n"
-  printf "    npm run api:smoke                 # terminal 2\n\n"
-  printf "  (or set XMARKET_SEED=demo in .env.local and restart)\n\n"
+# This suite creates every requirement and bid it asserts against, so it does
+# not need the demo dataset. The one thing it cannot create is a provider:
+# there is no POST /api/providers, and both POST /api/requirements/:id/bids and
+# POST /api/ai/draft-bid default to provider `p_me` and 404 without it. Ten
+# checks would fail for that reason alone, which reads like broken endpoints.
+if ! curl -s "$B/api/providers" | python3 -c "
+import json, sys
+try:
+    providers = json.load(sys.stdin)['data']['providers']
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if any(p['id'] == 'p_me' for p in providers) else 1)
+"; then
+  printf "\n  This suite needs the provider p_me, and the store has none.\n"
+  printf "  There is no endpoint for creating providers, so it cannot make one.\n\n"
+  printf "  Start the server with buyers and providers loaded, then re-run:\n\n"
+  printf "    XMARKET_SEED=parties npm run dev   # terminal 1\n"
+  printf "    npm run api:smoke                  # terminal 2\n\n"
+  printf '  `parties` loads only the people who can trade — no requirements and no\n'
+  printf '  offers — so the suite still writes every record it asserts against.\n'
+  printf '  (or set XMARKET_SEED=parties in .env.local and restart)\n\n'
   exit 2
 fi
 
 if [ "$KEEP" = "1" ]; then
   echo "(running with --keep: the store will not be reset, so this run's test records stay behind)"
 else
-  echo "(this suite restores the seeded demo dataset at the end — pass --keep to keep your own records)"
+  echo "(this suite resets the store to its seed state at the end — pass --keep to keep your own records)"
 fi
 echo
 
@@ -119,18 +133,18 @@ python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('      
 c=$(code -X POST $B/api/ai/parse-requirement -H 'content-type: application/json' -d '{"brief":"too short"}')
 check "POST ai parse too-short rejected" 400 "$c"
 
-c=$(code -X POST $B/api/ai/score-bid -H 'content-type: application/json' -d '{"requirementId":"r_mech","bidId":"bid_mech_atlas"}')
+c=$(code -X POST $B/api/ai/score-bid -H 'content-type: application/json' -d "{\"requirementId\":\"$RID\",\"bidId\":\"$BID\"}")
 check "POST ai score-bid" 200 "$c"
 python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        mode:',d['meta']['mode'],'| score:',d['semantic']['score'],'| confidence:',d['semantic']['confidence'],'| gaps:',len(d['semantic']['gaps']))"
 
-c=$(code -X POST $B/api/ai/score-bid -H 'content-type: application/json' -d '{"requirementId":"r_mech","bidId":"nope"}')
+c=$(code -X POST $B/api/ai/score-bid -H 'content-type: application/json' -d "{\"requirementId\":\"$RID\",\"bidId\":\"nope\"}")
 check "POST ai score unknown bid 404" 404 "$c"
 
-c=$(code -X POST $B/api/ai/draft-bid -H 'content-type: application/json' -d '{"requirementId":"r_mech"}')
+c=$(code -X POST $B/api/ai/draft-bid -H 'content-type: application/json' -d "{\"requirementId\":\"$RID\"}")
 check "POST ai draft-bid" 200 "$c"
 python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        mode:',d['meta']['mode'],'| pitch:',len(d['draft']['pitch']),'chars | milestones:',len(d['draft']['milestones']))"
 
-c=$(code -X POST $B/api/ai/summarize -H 'content-type: application/json' -d '{"requirementId":"r_mech"}')
+c=$(code -X POST $B/api/ai/summarize -H 'content-type: application/json' -d "{\"requirementId\":\"$RID\"}")
 check "POST ai summarize" 200 "$c"
 python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        mode:',d['meta']['mode'],'| offers:',d['offerCount'],'| tradeoffs:',len(d['summary']['tradeoffs']))"
 
@@ -185,10 +199,10 @@ python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];r=d['requirem
 
 echo
 echo "--- semantic blend + cache ---"
-c=$(code "$B/api/requirements/r_mech/compare?wSemantic=0.25"); check "GET blended compare" 200 "$c"
+c=$(code "$B/api/requirements/$RID/compare?wSemantic=0.25"); check "GET blended compare" 200 "$c"
 python3 -c "import json;m=json.load(open('/tmp/out.json'))['data']['semanticMeta'];print('        semanticMeta:',m and (m['mode']+' | scored '+str(m['scoredBids'])+'/'+str(m['requestedBids'])+' | '+('cached' if m['cached'] else 'fresh')))"
 
-c=$(code "$B/api/requirements/r_mech/compare"); check "GET plain compare has no model calls" 200 "$c"
+c=$(code "$B/api/requirements/$RID/compare"); check "GET plain compare has no model calls" 200 "$c"
 python3 -c "import json;m=json.load(open('/tmp/out.json'))['data']['semanticMeta'];assert m is None,'plain compare must not call the model';print('        semanticMeta: none (deterministic, as expected)')"
 
 c=$(code -X POST "$B/api/admin/reset?scope=ai-cache"); check "POST purge ai cache" 200 "$c"
@@ -197,9 +211,9 @@ python3 -c "import json;print('        dropped entries:',json.load(open('/tmp/ou
 echo
 echo "--- cleanup ---"
 if [ "$KEEP" = "1" ]; then
-  echo "  SKIP  restore demo data (--keep: your records were left untouched)"
+  echo "  SKIP  reset store (--keep: your records were left untouched)"
 else
-  c=$(code -X POST "$B/api/admin/reset?scope=all"); check "POST restore demo data" 200 "$c"
+  c=$(code -X POST "$B/api/admin/reset?scope=all"); check "POST reset store" 200 "$c"
   python3 -c "import json;d=json.load(open('/tmp/out.json'))['data'];print('        restored:',d['counts'])"
   echo "        note: any records you posted or imported were removed by this reset"
 fi
