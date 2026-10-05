@@ -21,7 +21,7 @@ export const POST = route(
     // so replaying the same token cannot set the password twice.
     const accountId = await consumeResetToken(input.token);
     if (!accountId) {
-      throw new ApiError("auth", "That reset link is invalid or has expired.");
+      throw new ApiError("unauthorized", "That reset link is invalid or has expired.");
     }
 
     await updatePassword(accountId, input.newPassword);

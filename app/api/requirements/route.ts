@@ -88,7 +88,7 @@ async function assertVerifiedBuyer() {
   // Accounts from before verification existed have no flag; treat absence as
   // verified so introducing this does not lock anyone out.
   if (account.emailVerified === false) {
-    throw new ApiError("auth", "Verify your email address before posting.");
+    throw new ApiError("forbidden", "Verify your email address before posting.");
   }
   return account;
 }

@@ -1,31 +1,22 @@
 import type { Bid, Buyer, Provider, Requirement, Weights } from "@/lib/types";
+import { fastapiRequest, FastapiUnreachableError } from "@/lib/fastapi-client";
+
+export type { ApiEnvelope } from "@/lib/api-core";
+export { ApiClientError } from "@/lib/api-core";
+import type { ApiEnvelope } from "@/lib/api-core";
+import { ApiClientError } from "@/lib/api-core";
 
 /* ==========================================================================
    Typed client for the XMARKET API.
    Every call returns parsed data or throws an ApiClientError carrying the
    server's code and message, so the UI can show the real reason a write failed
    instead of a generic failure toast.
+
+   The marketplace data calls hit the Next.js /api/* routes directly. The AI
+   calls go to the FastAPI service through the /fastapi/* rewrite; if that
+   process is down we transparently fall back to the equivalent Next.js
+   /api/ai/* route so the features keep working.
    ========================================================================== */
-
-export interface ApiEnvelope<T> {
-  ok: boolean;
-  data?: T;
-  error?: { code: string; message: string; details?: unknown };
-}
-
-export class ApiClientError extends Error {
-  code: string;
-  details?: unknown;
-  status: number;
-
-  constructor(message: string, code: string, status: number, details?: unknown) {
-    super(message);
-    this.name = "ApiClientError";
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-}
 
 export interface AiMeta {
   provider: string;
@@ -167,6 +158,24 @@ async function request<T>(
   return payload.data;
 }
 
+/**
+ * AI calls run on the FastAPI service. If that process is unreachable (the
+ * proxy surfaces it as a 5xx / network failure) we retry the same call on the
+ * Next.js /api/ai/* implementation, which carries the identical contract.
+ * Real API errors (auth, validation, rate limits) are never swallowed.
+ */
+async function aiViaFastapi<T>(
+  fastapi: () => Promise<T>,
+  legacy: () => Promise<T>
+): Promise<T> {
+  try {
+    return await fastapi();
+  } catch (error) {
+    if (error instanceof FastapiUnreachableError) return legacy();
+    throw error;
+  }
+}
+
 /* ------------------------------------------------------------------ calls */
 
 /** Extra provenance attached only when a comparison blended AI fit in. */
@@ -269,35 +278,79 @@ export const api = {
       { method: "POST" }
     ),
 
+  // The AI capabilities live on the FastAPI service (`/fastapi/v1/ai/*`), with
+  // an automatic fallback to the Next.js `/api/ai/*` routes if it is down.
   ai: {
     status: (options: { probe?: boolean } = {}) =>
-      request<AiStatus>(`/api/ai/status${options.probe ? "?probe=1" : ""}`),
+      aiViaFastapi<AiStatus>(
+        () => fastapiRequest<AiStatus>(`/v1/ai/status${options.probe ? "?probe=1" : ""}`),
+        () => request<AiStatus>(`/api/ai/status${options.probe ? "?probe=1" : ""}`)
+      ),
 
     parseRequirement: (brief: string, defaults?: { category?: string; location?: string }) =>
-      request<{ draft: ParsedDraft; meta: AiMeta }>(
-        "/api/ai/parse-requirement",
-        { method: "POST", json: { brief, defaults } }
+      aiViaFastapi<{ draft: ParsedDraft; meta: AiMeta }>(
+        () =>
+          fastapiRequest<{ draft: ParsedDraft; meta: AiMeta }>("/v1/ai/parse-requirement", {
+            method: "POST",
+            json: { brief, defaults },
+          }),
+        () =>
+          request<{ draft: ParsedDraft; meta: AiMeta }>("/api/ai/parse-requirement", {
+            method: "POST",
+            json: { brief, defaults },
+          })
       ),
 
     scoreBid: (requirementId: string, bidId: string) =>
-      request<{ semantic: SemanticScore; meta: AiMeta }>("/api/ai/score-bid", {
-        method: "POST",
-        json: { requirementId, bidId },
-      }),
+      aiViaFastapi<{ semantic: SemanticScore; meta: AiMeta }>(
+        () =>
+          fastapiRequest<{ semantic: SemanticScore; meta: AiMeta }>("/v1/ai/score-bid", {
+            method: "POST",
+            json: { requirementId, bidId },
+          }),
+        () =>
+          request<{ semantic: SemanticScore; meta: AiMeta }>("/api/ai/score-bid", {
+            method: "POST",
+            json: { requirementId, bidId },
+          })
+      ),
 
     draftBid: (
       requirementId: string,
       options: { providerId?: string; targetPrice?: number; deliveryDays?: number; notes?: string } = {}
     ) =>
-      request<{ draft: DraftBid; meta: AiMeta }>("/api/ai/draft-bid", {
-        method: "POST",
-        json: { requirementId, ...options },
-      }),
+      aiViaFastapi<{ draft: DraftBid; meta: AiMeta }>(
+        () =>
+          fastapiRequest<{ draft: DraftBid; meta: AiMeta }>("/v1/ai/draft-bid", {
+            method: "POST",
+            json: { requirementId, ...options },
+          }),
+        () =>
+          request<{ draft: DraftBid; meta: AiMeta }>("/api/ai/draft-bid", {
+            method: "POST",
+            json: { requirementId, ...options },
+          })
+      ),
 
     summarize: (requirementId: string, weights?: Weights, focus?: string) =>
-      request<{ summary: ComparisonSummary; offerCount: number; meta: AiMeta }>(
-        "/api/ai/summarize",
-        { method: "POST", json: { requirementId, weights, focus } }
+      aiViaFastapi<{ summary: ComparisonSummary; offerCount: number; meta: AiMeta }>(
+        () =>
+          fastapiRequest<{ summary: ComparisonSummary; offerCount: number; meta: AiMeta }>(
+            "/v1/ai/summarize",
+            { method: "POST", json: { requirementId, weights, focus } }
+          ),
+        () =>
+          request<{ summary: ComparisonSummary; offerCount: number; meta: AiMeta }>(
+            "/api/ai/summarize",
+            { method: "POST", json: { requirementId, weights, focus } }
+          )
+      ),
+
+    // New in the FastAPI service — no Next.js equivalent to fall back to.
+    copilot: (message: string, history: { role: "user" | "assistant"; content: string }[] = []) =>
+      fastapiRequest<{ reply: string; meta: AiMeta & { requirementsInContext?: number } }>(
+        "/v1/ai/copilot",
+        { method: "POST", json: { message, history } }
       ),
   },
 };

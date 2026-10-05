@@ -3,12 +3,13 @@
 import * as React from "react";
 import { MessageSquare, Send } from "lucide-react";
 import { Button, Card } from "@/components/ui/primitives";
+import { api } from "@/lib/api-client";
 
 type Turn = { role: "user" | "assistant"; content: string };
 
 /**
  * The buyer's assistant. Answers come from the buyer's own requirements and
- * offers — see POST /api/ai/copilot for the context it is given.
+ * offers — served by the FastAPI service (`/fastapi/v1/ai/copilot`).
  */
 export function Copilot() {
   const [open, setOpen] = React.useState(false);
@@ -35,25 +36,13 @@ export function Copilot() {
     setError(null);
 
     try {
-      const response = await fetch("/api/ai/copilot", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          message,
-          // Send prior turns so the model can follow a thread.
-          history: history.slice(0, -1).map((t) => ({
-            role: t.role,
-            content: t.content,
-          })),
-        }),
-      });
-      const json = await response.json();
-      if (!json.ok) throw new Error(json.error?.message ?? "Something went wrong.");
-      setTurns((prev) => [
-        ...prev,
-        { role: "assistant", content: json.data.reply },
-      ]);
-      setMeta(`${json.data.meta.provider} · ${json.data.meta.model}`);
+      const data = await api.ai.copilot(
+        message,
+        // Send prior turns so the model can follow a thread.
+        history.slice(0, -1).map((t) => ({ role: t.role, content: t.content }))
+      );
+      setTurns((prev) => [...prev, { role: "assistant", content: data.reply }]);
+      setMeta(`${data.meta.provider} · ${data.meta.model}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {

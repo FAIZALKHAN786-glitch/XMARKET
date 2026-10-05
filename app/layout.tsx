@@ -34,16 +34,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
+        {/*
+          No external fonts: the middleware's CSP allows 'self' only, so a
+          fonts.googleapis.com link would be blocked on every page (and log
+          console errors). The --font-sans stack in globals.css falls back to
+          the system fonts, so rendering is identical with no network access.
+        */}
       </head>
       <body className="min-h-dvh font-sans">
         <StoreProvider>

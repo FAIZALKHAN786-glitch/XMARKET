@@ -11,8 +11,12 @@ export type ApiErrorCode =
   | "conflict"
   | "unprocessable"
   | "rate_limited"
+  /** No valid session or credentials were presented — bad password, missing sign-in. */
+  | "unauthorized"
+  /** Signed in, but not allowed: wrong role, not the owner, unverified email. */
+  | "forbidden"
   | "ai_unavailable"
-  /** The configured provider rejected our credentials. */
+  /** The configured LLM provider rejected OUR API key — a server-side config fault, not the caller's fault. */
   | "auth"
   /** The provider failed on its side (5xx) — transient. */
   | "upstream"
@@ -24,6 +28,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   conflict: 409,
   unprocessable: 422,
   rate_limited: 429,
+  unauthorized: 401,
+  forbidden: 403,
   ai_unavailable: 503,
   auth: 502,
   upstream: 502,

@@ -34,3 +34,8 @@ tsconfig.tsbuildinfo
 
 # local Postgres cluster started by scripts/dev-postgres.mjs
 /.pgdata/
+
+# python (FastAPI backend in backend/)
+backend/.venv/
+__pycache__/
+*.pyc

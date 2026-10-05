@@ -14,7 +14,7 @@ import type { Account } from "@/lib/types";
 export async function requireAccount(): Promise<Account> {
   const account = await currentAccount();
   if (!account) {
-    throw new ApiError("auth", "You need to sign in to do that.");
+    throw new ApiError("unauthorized", "You need to sign in to do that.");
   }
   return account;
 }
@@ -29,7 +29,7 @@ export async function assertOwnsRequirement(
     throw new ApiError("not_found", `No requirement with id ${requirementId}`);
   }
   if (requirement.buyerId !== account.id) {
-    throw new ApiError("auth", "That requirement belongs to another buyer.");
+    throw new ApiError("forbidden", "That requirement belongs to another buyer.");
   }
   return account;
 }
@@ -45,7 +45,7 @@ export async function assertOwnsBid(bidId: string): Promise<Account> {
     throw new ApiError("not_found", "Parent requirement missing");
   }
   if (requirement.buyerId !== account.id) {
-    throw new ApiError("auth", "Only the buyer who posted this can change an offer.");
+    throw new ApiError("forbidden", "Only the buyer who posted this can change an offer.");
   }
   return account;
 }
@@ -60,10 +60,10 @@ export async function assertSellerForProvider(
 ): Promise<Account> {
   const account = await requireAccount();
   if (account.role !== "seller") {
-    throw new ApiError("auth", "Only a seller can place an offer.");
+    throw new ApiError("forbidden", "Only a seller can place an offer.");
   }
   if (account.merchantId !== providerId) {
-    throw new ApiError("auth", "You can only bid as your own merchant ID.");
+    throw new ApiError("forbidden", "You can only bid as your own merchant ID.");
   }
   return account;
 }

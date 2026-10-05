@@ -17,7 +17,7 @@ export const POST = route(
     // verify twice.
     const accountId = await consumeVerificationToken(input.token);
     if (!accountId) {
-      throw new ApiError("auth", "That verification link is invalid or has expired.");
+      throw new ApiError("unauthorized", "That verification link is invalid or has expired.");
     }
     return ok({ verified: true });
   },
