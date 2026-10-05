@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ok, rateLimit, readBody, route } from "@/lib/server/http";
 import { createResetToken } from "@/lib/server/accounts";
+import { isMailConfigured, sendPasswordReset } from "@/lib/server/mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,9 +23,20 @@ export const POST = route(
     rateLimit("auth:request-reset", 5, 60_000);
     const input = await readBody(request, schema);
     const token = await createResetToken(input.email);
+    const message = "If that address is registered, a reset link has been sent.";
+
+    // Once a transport exists the token is emailed and never returned, so the
+    // endpoint cannot be used to read somebody else's reset link.
+    if (token && isMailConfigured()) {
+      await sendPasswordReset(input.email, token);
+      return ok({ requested: true, message });
+    }
+
     return ok({
       requested: true,
-      message: "If that address is registered, a reset link has been sent.",
+      message,
+      // Development only: there is no transport configured, so there is
+      // nowhere else for the token to go.
       devToken: token,
     });
   },

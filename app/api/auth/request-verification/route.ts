@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ok, rateLimit, readBody, route } from "@/lib/server/http";
 import { createVerificationToken } from "@/lib/server/accounts";
+import { isMailConfigured, sendEmailVerification } from "@/lib/server/mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,9 +20,18 @@ export const POST = route(
     rateLimit("auth:verify-request", 5, 60_000);
     const input = await readBody(request, schema);
     const token = await createVerificationToken(input.email);
+    const message =
+      "If that address is registered, a verification link has been sent.";
+
+    if (token && isMailConfigured()) {
+      await sendEmailVerification(input.email, token);
+      return ok({ requested: true, message });
+    }
+
     return ok({
       requested: true,
-      message: "If that address is registered, a verification link has been sent.",
+      message,
+      // Development only: no transport configured, so no other way to deliver it.
       devToken: token,
     });
   },

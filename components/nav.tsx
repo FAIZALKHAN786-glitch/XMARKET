@@ -18,6 +18,7 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { Logo } from "./brand";
 import { NotificationBell, SearchLauncher } from "./header-tools";
+import { LogOut } from "lucide-react";
 import { OfflineBanner, SystemStatus } from "./system-status";
 import { Avatar, ButtonLink, Segmented } from "./ui/primitives";
 
@@ -35,8 +36,26 @@ const PROVIDER_NAV = [
 
 export function RoleSwitch({ className }: { className?: string }) {
   const { role, setRole, account } = useStore();
-  // Signed in, the role comes from the account and cannot be toggled.
-  if (account) return null;
+  // Signed in, the role comes from the account and cannot be toggled — so this
+  // slot becomes the way out instead.
+  if (account) {
+    return (
+      <button
+        type="button"
+        onClick={async () => {
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.href = "/signin";
+        }}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-[0.8125rem] text-white/70 transition-colors duration-150 hover:border-white/40 hover:text-white",
+          className
+        )}
+      >
+        <LogOut className="size-3.5" />
+        Sign out
+      </button>
+    );
+  }
 
   return (
     <Segmented
