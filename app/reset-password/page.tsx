@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -13,7 +14,7 @@ import { Button, Card } from "@/components/ui/primitives";
  * minutes; the API rejects a replay, so a refreshed page after a successful
  * reset shows the failure state rather than silently resetting again.
  */
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token") ?? "";
@@ -147,4 +148,8 @@ export default function ResetPasswordPage() {
       </div>
     </div>
   );
+}
+
+export default function ResetPasswordPage() {
+  return <Suspense fallback={<div className="frame py-20 md:py-28" aria-busy="true" />}><ResetPasswordForm /></Suspense>;
 }

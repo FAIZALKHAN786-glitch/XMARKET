@@ -17,6 +17,7 @@ export default function BuyerSignInPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
 
@@ -31,8 +32,10 @@ export default function BuyerSignInPage() {
             : { role: "buyer", email, password, displayName }
         ),
       });
-      const json = await response.json();
-      if (!json.ok) throw new Error(json.error?.message ?? "Something went wrong.");
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) {
+        throw new Error(json?.error?.message ?? "Unable to sign in. Please try again.");
+      }
       router.push("/buyer");
       router.refresh();
     } catch (err) {
@@ -97,7 +100,7 @@ export default function BuyerSignInPage() {
                 id="buyer-password"
                 type="password"
                 required
-                minLength={8}
+                minLength={mode === "create" ? 8 : undefined}
                 autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
