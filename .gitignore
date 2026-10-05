@@ -31,3 +31,6 @@ tsconfig.tsbuildinfo
 # runtime database (seeded on first boot)
 /data/*.json
 /data/*.tmp
+
+# local Postgres cluster started by scripts/dev-postgres.mjs
+/.pgdata/

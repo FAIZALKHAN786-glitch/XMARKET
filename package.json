@@ -2,7 +2,7 @@
   "name": "xmarket",
   "version": "0.1.0",
   "private": true,
-  "description": "XMARKET \u2014 a needs-first reverse marketplace where buyers post requirements and providers bid, ranked by an intelligent compatibility engine.",
+  "description": "XMARKET — a needs-first reverse marketplace where buyers post requirements and providers bid, ranked by an intelligent compatibility engine.",
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
@@ -11,11 +11,13 @@
     "ai:check": "node scripts/ai-check.mjs",
     "api:smoke": "bash scripts/api-smoke.sh",
     "data:import": "node scripts/import-tenders.mjs",
-    "tags:check": "node --experimental-strip-types scripts/tag-check.mjs"
+    "tags:check": "node --experimental-strip-types scripts/tag-check.mjs",
+    "db:dev": "node scripts/dev-postgres.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.454.0",
     "next": "^15.1.0",
+    "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^4.6.5"
@@ -23,10 +25,10 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "embedded-postgres": "^18.4.0-beta.17",
-    "pg": "^8.23.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0"
   }
