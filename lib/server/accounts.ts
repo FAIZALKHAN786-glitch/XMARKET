@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Pool } from "pg";
@@ -297,3 +298,113 @@ export async function verifyPassword(
 }
 
 export class AccountError extends Error {}
+
+/* ------------------------------------------------------- password management */
+
+const RESET_SCHEMA = `
+CREATE TABLE IF NOT EXISTS password_resets (
+  token       text PRIMARY KEY,
+  account_id  text NOT NULL,
+  expires_at  timestamptz NOT NULL,
+  used_at     timestamptz
+);
+`;
+
+const RESET_TTL_MS = 1000 * 60 * 30;
+
+async function ensureResetTable(): Promise<void> {
+  if (dbKind() === "postgres") await getPool().query(RESET_SCHEMA);
+}
+
+/**
+ * Replace a password. Hashed with the same cost as registration.
+ *
+ * Callers are expected to revoke sessions afterwards — a password change is
+ * exactly when every other device should be logged out.
+ */
+export async function updatePassword(
+  accountId: string,
+  newPassword: string
+): Promise<void> {
+  const accounts = await readAll();
+  const index = accounts.findIndex((a) => a.id === accountId);
+  if (index === -1) throw new AccountError("Account not found.");
+
+  const next = [...accounts];
+  next[index] = {
+    ...next[index],
+    passwordHash: await bcrypt.hash(newPassword, BCRYPT_ROUNDS),
+  };
+  await writeAll(next);
+}
+
+/**
+ * Issue a single-use reset token.
+ *
+ * The token is returned to the caller because there is no mail transport wired
+ * up yet. In production this belongs in an email and the endpoint should return
+ * nothing but a confirmation either way, so that it cannot be used to discover
+ * which addresses are registered.
+ */
+export async function createResetToken(email: string): Promise<string | null> {
+  const account = await findByEmail(email);
+  if (!account) return null;
+
+  await ensureResetTable();
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
+
+  if (dbKind() === "postgres") {
+    await getPool().query(
+      "INSERT INTO password_resets (token, account_id, expires_at) VALUES ($1,$2,$3)",
+      [token, account.id, expiresAt]
+    );
+  } else {
+    const file = path.join(process.cwd(), "data", "password-resets.json");
+    let all: { token: string; accountId: string; expiresAt: string; usedAt: string | null }[] = [];
+    try {
+      all = JSON.parse(await fs.readFile(file, "utf8"));
+    } catch {
+      /* first token */
+    }
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(
+      file,
+      JSON.stringify([...all, { token, accountId: account.id, expiresAt, usedAt: null }], null, 2),
+      "utf8"
+    );
+  }
+  return token;
+}
+
+/** Consume a reset token. Returns the account id, or null if it is not usable. */
+export async function consumeResetToken(token: string): Promise<string | null> {
+  await ensureResetTable();
+  const now = new Date().toISOString();
+
+  if (dbKind() === "postgres") {
+    const { rows } = await getPool().query<{ accountId: string }>(
+      `UPDATE password_resets SET used_at = $1
+        WHERE token = $2 AND used_at IS NULL AND expires_at > now()
+        RETURNING account_id AS "accountId"`,
+      [now, token]
+    );
+    return rows[0]?.accountId ?? null;
+  }
+
+  const file = path.join(process.cwd(), "data", "password-resets.json");
+  let all: { token: string; accountId: string; expiresAt: string; usedAt: string | null }[] = [];
+  try {
+    all = JSON.parse(await fs.readFile(file, "utf8"));
+  } catch {
+    return null;
+  }
+  const hit = all.find(
+    (r) => r.token === token && !r.usedAt && new Date(r.expiresAt).getTime() > Date.now()
+  );
+  if (!hit) return null;
+
+  const next = all.map((r) => (r.token === token ? { ...r, usedAt: now } : r));
+  await fs.writeFile(file, JSON.stringify(next, null, 2), "utf8");
+  return hit.accountId;
+}

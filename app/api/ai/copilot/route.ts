@@ -82,7 +82,11 @@ export const POST = route(
             ].join("\n\n"),
           },
         ],
-        { temperature: 0.4, noCache: true }
+        // Gemini 3.x spends part of maxOutputTokens on thinking before it
+        // answers. The JSON endpoints get away with the 1400 default because a
+        // schema-shaped reply is short; a prose answer is not, and at the
+        // default the reply can arrive empty. Give it room.
+        { temperature: 0.4, maxTokens: 2400, noCache: true }
       );
     } catch (error) {
       const s = status();
@@ -105,7 +109,9 @@ export const POST = route(
 
     const s = status();
     return ok({
-      reply: typeof result.value === "string" ? result.value : String(result.value),
+      reply:
+        (typeof result.value === "string" ? result.value : String(result.value)).trim() ||
+        "The model returned an empty answer. Try rephrasing, or ask something shorter.",
       meta: {
         provider: result.provider,
         model: result.model,
