@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { MessageSquare, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { ButtonLink, Card, EmptyState } from "@/components/ui/primitives";
 import { useStore } from "@/lib/store";
+import { Copilot } from "@/components/copilot";
+import { OfferDecision } from "@/components/offer-decision";
 import { deadlineLabel, usd } from "@/lib/format";
 
 /**
@@ -53,6 +54,10 @@ export default function BuyerPage() {
         </ButtonLink>
       </div>
 
+      <div className="mt-6 max-w-2xl">
+        <Copilot />
+      </div>
+
       {/* ------------------------------------------------------- responses */}
       <div className="mt-16">
         <div className="flex items-baseline justify-between gap-4">
@@ -87,18 +92,9 @@ export default function BuyerPage() {
                         {deadlineLabel(r.closesAt)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={offers > 0 ? `/compare/${r.id}` : `/market/${r.id}`}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/20 px-4 text-sm font-medium text-white transition-colors duration-150 hover:border-white/40 hover:bg-white/5"
-                      >
-                        <MessageSquare className="size-4" />
-                        {offers > 0
-                          ? `View ${offers} ${offers === 1 ? "offer" : "offers"}`
-                          : "No responses yet"}
-                      </Link>
-                    </div>
                   </div>
+
+                  <OfferDecision requirement={r} />
                 </Card>
               );
             })}

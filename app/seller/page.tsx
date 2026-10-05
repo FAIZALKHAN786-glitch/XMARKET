@@ -11,7 +11,7 @@ import { deadlineLabel, usd } from "@/lib/format";
  * they registered for — routing is by domain, not by browsing.
  */
 export default function SellerPage() {
-  const { requirements, bids, account } = useStore();
+  const { requirements, bids, buyers, account } = useStore();
 
   const domain = account?.domain;
   const merchantId = account?.merchantId;
@@ -42,6 +42,38 @@ export default function SellerPage() {
           {merchantId}
         </p>
       )}
+
+      {/* ------------------------------------------------------- notifications */}
+      {(() => {
+        const won = myBids.filter((b) => b.status === "accepted");
+        if (won.length === 0) return null;
+        return (
+          <div className="mt-10 space-y-3">
+            {won.map((b) => {
+              const requirement = requirements.find((r) => r.id === b.requirementId);
+              const buyerName =
+                buyers.find((x) => x.id === requirement?.buyerId)?.name ??
+                requirement?.buyerId ??
+                "A buyer";
+              return (
+                <div
+                  key={b.id}
+                  className="rounded-2xl border border-white/15 bg-white/5 p-5"
+                >
+                  <p className="text-[0.9375rem] font-semibold text-white">
+                    {buyerName} has finalised your bid
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed muted">
+                    They need {requirement?.title ?? "this work"} by{" "}
+                    {requirement ? deadlineLabel(requirement.deadline) : "the agreed date"}{" "}
+                    — {usd(b.price)} over {b.deliveryDays} days.
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* ------------------------------------------------- requirements in domain */}
       <h2 className="mt-12 text-lg font-semibold text-white">
