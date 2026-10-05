@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card } from "@/components/ui/primitives";
@@ -11,7 +12,7 @@ import { Button, Card } from "@/components/ui/primitives";
  * There is nothing for the visitor to type — the token in the link is the whole
  * action — so it is consumed on mount and the result reported.
  */
-export default function VerifyEmailPage() {
+function VerifyEmailForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token") ?? "";
@@ -96,4 +97,8 @@ export default function VerifyEmailPage() {
       </div>
     </div>
   );
+}
+
+export default function VerifyEmailPage() {
+  return <Suspense fallback={<div className="frame py-20 md:py-28" aria-busy="true" />}><VerifyEmailForm /></Suspense>;
 }
