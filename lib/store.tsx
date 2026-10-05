@@ -13,6 +13,7 @@ import { BIDS, BUYERS, ME_BUYER, ME_PROVIDER, PROVIDERS, REQUIREMENTS } from "./
 import { DEFAULT_WEIGHTS } from "./engine";
 import { api, isApiError, type AiStatus, type AuditEvent } from "./api-client";
 import type {
+  Account,
   Bid,
   BidStatus,
   Buyer,
@@ -73,6 +74,8 @@ interface StoreValue {
   /* identity */
   meBuyerId: string;
   meProviderId: string;
+  /** The signed-in account, or null when browsing anonymously. */
+  account: Account | null;
 
   /* actions */
   refresh: () => Promise<void>;
@@ -105,6 +108,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [providers, setProviders] = useState<Provider[]>(PROVIDERS);
   const [buyers, setBuyers] = useState<Buyer[]>(BUYERS);
   const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [account, setAccount] = useState<Account | null>(null);
   const [prefs, setPrefs] = useState<Prefs>({
     role: "buyer",
     weights: DEFAULT_WEIGHTS,
@@ -135,6 +139,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       /* first run */
     }
     setHydrated(true);
+  }, []);
+
+  // Who is signed in. Fetched once; auth changes navigate and remount.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/session")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.ok) setAccount(json.data.account ?? null);
+      })
+      .catch(() => {
+        /* anonymous */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -280,8 +300,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       aiStatus,
       busy,
       toasts,
-      meBuyerId: ME_BUYER,
-      meProviderId: ME_PROVIDER,
+      account,
+      meBuyerId: account?.role === "buyer" ? account.id : ME_BUYER,
+      meProviderId:
+        account?.role === "seller" && account.merchantId
+          ? account.merchantId
+          : ME_PROVIDER,
       pushToast,
       dismissToast,
       refresh,
