@@ -182,9 +182,14 @@ export function MobileTabBar() {
   const pathname = usePathname();
   const { role } = useStore();
   const links = (role === "buyer" ? BUYER_NAV : PROVIDER_NAV).slice(0, 3);
+  // Four fixed slots: two primary destinations, then Post and Offers. The
+  // primary pair has to skip those two hrefs — PROVIDER_NAV already lists
+  // /proposals second, so taking links[0] and links[1] verbatim put the same
+  // href in two slots and React warned about the duplicate key. The tab grid
+  // is grid-cols-4, so this must yield exactly four distinct destinations.
+  const pinned = ["/post", "/proposals"];
   const all = [
-    links[0],
-    links[1],
+    ...links.filter((link) => !pinned.includes(link.href)).slice(0, 2),
     { href: "/post", label: role === "buyer" ? "Post" : "Bid", icon: Plus },
     { href: "/proposals", label: "Offers", icon: FileText },
   ];
