@@ -111,7 +111,7 @@ function buildConfig(
       return {
         provider,
         apiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
-        model: pick("GEMINI_MODEL", "gemini-2.5-flash"),
+        model: pick("GEMINI_MODEL", "gemini-3.8-flash"),
         baseUrl: pick(
           "GEMINI_BASE_URL",
           "https://generativelanguage.googleapis.com/v1beta"
@@ -524,6 +524,10 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
         temperature,
         maxOutputTokens: maxTokens,
         responseMimeType: options.schema ? "application/json" : "text/plain",
+        // Thinking levels are supported by Gemini 3.x, not older models.
+        ...(/^gemini-3(?:[.-]|$)/.test(c.model)
+          ? { thinkingConfig: { thinkingLevel: "low" } }
+          : {}),
       },
     };
   }
