@@ -33,12 +33,22 @@ import {
 } from "@/components/ui/primitives";
 import { CATEGORIES } from "@/lib/data";
 import { listBids, listProviders, listRequirements } from "@/lib/server/repo";
+import { redirect } from "next/navigation";
+import { currentAccount } from "@/lib/server/session";
 import { usd } from "@/lib/format";
 
 // Reads the store, so it cannot be statically rendered at build time.
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  // The product now opens on the role picker. A signed-in visitor goes straight
+  // to their own workspace; an anonymous one has to say whether they are buying
+  // or selling first. The marketing content that used to live here is the buyer
+  // workspace's hero, so nothing was lost by moving the entry point.
+  const account = await currentAccount();
+  if (!account) redirect("/signin");
+  redirect(account.role === "buyer" ? "/buyer" : "/seller");
+
   // Every figure on this page is read from the store. The previous version
   // hard-coded "3,184 verified providers", "42 min to first offer" and
   // "23% average saving" and derived the requirement count from
