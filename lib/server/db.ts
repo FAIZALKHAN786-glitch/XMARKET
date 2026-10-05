@@ -33,6 +33,7 @@ export interface AuditEvent {
     | "bid.created"
     | "bid.status"
     | "ai.invoked"
+    | "provider.created"
     | "db.seeded";
   actor: string;
   requirementId?: string;

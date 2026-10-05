@@ -2,6 +2,7 @@ import { DEFAULT_WEIGHTS, compatibility, rankBids } from "@/lib/engine";
 import type {
   Bid,
   BidStatus,
+  Provider,
   Requirement,
   RequirementStatus,
   Score,
@@ -217,6 +218,34 @@ export async function setBidStatus(
 export async function listProviders() {
   const db = await getDb();
   return db.providers;
+}
+
+/**
+ * Register a marketplace provider.
+ *
+ * Called when a seller account is created, so the merchant ID issued at sign-up
+ * is also a provider the bidding endpoints can resolve. Without this bridge a
+ * seller can register and then be told "Unknown provider" the moment they try
+ * to bid.
+ */
+export async function createProvider(
+  input: Omit<Provider, "id"> & { id: string }
+): Promise<Provider> {
+  const existing = await getProvider(input.id);
+  if (existing) return existing;
+
+  const provider = await mutate((db) => {
+    const record: Provider = { ...input };
+    db.providers.unshift(record);
+    return record;
+  });
+  await record({
+    type: "provider.created",
+    actor: "system",
+    summary: `Provider ${provider.name} registered`,
+    meta: { providerId: provider.id },
+  });
+  return provider;
 }
 
 export async function getProvider(id: string) {

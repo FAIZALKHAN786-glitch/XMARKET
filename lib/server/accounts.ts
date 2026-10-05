@@ -198,6 +198,30 @@ export async function createBuyer(input: {
   };
 
   await writeAll([...accounts, account]);
+
+  // Bridge into the marketplace so requirements this buyer posts resolve to a
+  // readable name. Without it a seller's award notification shows a raw
+  // account id instead of who actually finalised the offer.
+  const { mutate } = await import("./db");
+  await mutate((db) => {
+    if (db.buyers.some((b) => b.id === account.id)) return null;
+    db.buyers.unshift({
+      id: account.id,
+      name: account.displayName,
+      company: account.company ?? "—",
+      location: "—",
+      initials: account.displayName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w[0]?.toUpperCase() ?? "")
+        .join(""),
+      rating: 0,
+      posted: 0,
+      awarded: 0,
+    });
+    return null;
+  });
+
   return account;
 }
 
@@ -235,6 +259,33 @@ export async function createSeller(input: {
   };
 
   await writeAll([...accounts, account]);
+
+  // Bridge into the marketplace: the merchant ID must resolve as a provider or
+  // every bid this seller places is rejected as an unknown provider.
+  const { createProvider } = await import("./repo");
+  await createProvider({
+    id: account.merchantId!,
+    name: account.shopName!,
+    tagline: `${account.merchantName} — ${input.domain}`,
+    location: "—",
+    initials: account.shopName!
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join(""),
+    categories: [input.domain],
+    skills: [],
+    // A new merchant has no record yet, so nothing is asserted: zero reviews,
+    // zero completed jobs. The performance score starts level at 50.
+    rating: 0,
+    reviews: 0,
+    completedJobs: 0,
+    onTimeRate: 1,
+    responseHours: 24,
+    verified: false,
+    memberSince: new Date().getFullYear(),
+  });
+
   return account;
 }
 
