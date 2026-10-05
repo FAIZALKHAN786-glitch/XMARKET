@@ -111,7 +111,7 @@ function buildConfig(
       return {
         provider,
         apiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
-        model: pick("GEMINI_MODEL", "gemini-2.5-flash"),
+        model: pick("GEMINI_MODEL", "gemini-3.8-flash"),
         baseUrl: pick(
           "GEMINI_BASE_URL",
           "https://generativelanguage.googleapis.com/v1beta"
@@ -512,6 +512,12 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
 
   if (c.provider === "gemini") {
     const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+    // Gemini 3.x replaced the numeric thinking_budget of 2.x with the
+    // thinkingLevel enum and deprecated the sampling parameters: temperature is
+    // accepted but ignored today and slated to be rejected outright. Pin
+    // thinking to "low" — these calls are extraction, scoring and short copy —
+    // and drop temperature for 3.x only, so 2.x payloads stay as they were.
+    const isGemini3 = /^(?:gemini-)?3(?:[.-]|$)/.test(c.model);
     return {
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
       contents: messages
@@ -521,7 +527,7 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
           parts: [{ text: m.content }],
         })),
       generationConfig: {
-        temperature,
+        ...(isGemini3 ? { thinkingConfig: { thinkingLevel: "low" } } : { temperature }),
         maxOutputTokens: maxTokens,
         responseMimeType: options.schema ? "application/json" : "text/plain",
       },
