@@ -17,11 +17,11 @@ export const POST = route(
   async (request: Request) => {
     rateLimit("auth:change-password", 10, 60_000);
     const account = await currentAccount();
-    if (!account) throw new ApiError("auth", "You need to sign in to do that.");
+    if (!account) throw new ApiError("unauthorized", "You need to sign in to do that.");
 
     const input = await readBody(request, schema);
     if (!(await verifyPassword(account, input.currentPassword))) {
-      throw new ApiError("auth", "Your current password is incorrect.");
+      throw new ApiError("unauthorized", "Your current password is incorrect.");
     }
     if (input.currentPassword === input.newPassword) {
       throw new ApiError("bad_request", "The new password must be different.");

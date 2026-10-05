@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button, Card } from "@/components/ui/primitives";
+import { GoogleSignInButton } from "@/components/google-signin-button";
+import { upgradeSession } from "@/lib/fastapi-client";
 import { CATEGORIES } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
 
@@ -41,6 +43,9 @@ export default function SellerSignInPage() {
       if (!response.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? "Unable to sign in. Please try again.");
       }
+      // Exchange the fresh session cookie for the FastAPI bearer token so AI
+      // calls are authenticated immediately (fire-and-forget).
+      void upgradeSession();
 
       if (registering && json.data?.merchantId) {
         setIssued(json.data.merchantId);
@@ -116,6 +121,17 @@ export default function SellerSignInPage() {
               {busy ? "Please wait…" : registering ? "Create seller account" : "Sign in"}
             </Button>
           </form>
+
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs uppercase tracking-wide text-white/40">or</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <div className="mt-6">
+            <GoogleSignInButton role="seller" next="/seller" />
+          </div>
+
           <button type="button" disabled={busy} onClick={() => { setMode(registering ? "signin" : "create"); setError(null); }} className="mt-4 w-full text-center text-sm text-white/60 transition-colors hover:text-white disabled:opacity-50">
             {registering ? "Already have an account? Sign in" : "New seller? Create an account"}
           </button>

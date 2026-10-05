@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button, Card } from "@/components/ui/primitives";
+import { GoogleSignInButton } from "@/components/google-signin-button";
+import { upgradeSession } from "@/lib/fastapi-client";
 
 export default function BuyerSignInPage() {
   const router = useRouter();
@@ -36,6 +38,9 @@ export default function BuyerSignInPage() {
       if (!response.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? "Unable to sign in. Please try again.");
       }
+      // Exchange the fresh session cookie for the FastAPI bearer token so AI
+      // calls are authenticated immediately (fire-and-forget).
+      void upgradeSession();
       router.push("/buyer");
       router.refresh();
     } catch (err) {
@@ -119,6 +124,16 @@ export default function BuyerSignInPage() {
               {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
             </Button>
           </form>
+
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs uppercase tracking-wide text-white/40">or</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <div className="mt-6">
+            <GoogleSignInButton role="buyer" next="/buyer" />
+          </div>
 
           <button
             type="button"

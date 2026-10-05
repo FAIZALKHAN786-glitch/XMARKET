@@ -20,6 +20,19 @@ npm run dev                  # http://localhost:3000
 npm run build && npm start   # production build
 ```
 
+The AI and sign-in (OAuth2) half of the app runs on a separate **FastAPI**
+service (in `backend/`). It is optional to boot — if it is not running, every
+AI route transparently falls back to the built-in Next.js implementation, so
+the interface above works on its own. To run it:
+
+```bash
+npm run py:install   # once: create backend/.venv and install backend/requirements.txt
+npm run py:dev       # http://127.0.0.1:8000  (the Next app proxies /fastapi/* to it)
+```
+
+See [FastAPI service (AI + OAuth2)](#fastapi-service-ai--oauth2) for the full
+picture: what it owns, the OAuth2 endpoints, and Google sign-in.
+
 The app ships with a seeded demo dataset (8 requirements, 17 offers, 8 providers). Everything the UI does now goes through the REST API in `app/api` and is persisted to `data/xmarket.json`, so posting a requirement, submitting a bid, shortlisting or awarding survives a reload **and** a server restart. Use the **role switch** in the header to move between the buyer and provider experiences.
 
 ```bash
@@ -27,6 +40,24 @@ npm run api:smoke    # 40 checks against a running server: CRUD, rules, ranking,
 npm run ai:check     # probes the provider, then reports which engine answered each capability
 npm run data:import  # pull real public tenders in (see "Real data" below)
 ```
+
+<details>
+<summary><b>⚠️ A page loads but buttons do nothing / login just re-renders?</b></summary>
+
+That is a stale or half-written `.next` build — the HTML is served, but one or
+more of the JavaScript chunks it needs are missing, so the page never becomes
+interactive. It happens when a build and a dev server run at the same time, a
+build is interrupted, or code is updated over an old build.
+
+```bash
+# stop the server, then:
+npm run rebuild      # wipes .next and builds clean
+npm start            # or: npm run dev
+```
+
+If it still misbehaves, also delete `node_modules` and `package-lock.json` and
+re-run `npm install` before `npm run rebuild`.
+</details>
 
 Both expect the server on `http://127.0.0.1:3000` (`BASE_URL` overrides it). The smoke suite writes real records and **restores the seeded dataset at the end** — which also removes anything you posted or imported. Run it with `npm run api:smoke -- --keep` to leave the store untouched.
 
@@ -221,6 +252,90 @@ Every screen reads and writes through the API — there is no client-only demo s
 **Business rules live on the server, not in the browser.** An offer above the buyer's ceiling, a delivery date past the deadline, a second live offer from the same provider, or a bid on an awarded requirement are all rejected with a message the UI shows verbatim. Ranking is computed server-side by the same pure engine the UI imports, so the numbers can never disagree.
 
 **Persistence.** `lib/server/db.ts` keeps one JSON document in memory and writes it through a serialised queue (atomic temp-file rename), so concurrent requests cannot interleave a read-modify-write. If the file ever becomes unwritable the API keeps serving from memory and says so instead of failing. Swapping this module for Postgres means reimplementing `lib/server/repo.ts`, nothing else.
+
+---
+
+## FastAPI service (AI + OAuth2)
+
+AI calls and sign-in run on a standalone **FastAPI** process (`backend/`),
+separate from the Next.js app. The browser never talks to it directly: it only
+ever reaches the Next.js origin, and `next.config.mjs` proxies **`/fastapi/*`**
+to the service (default `http://127.0.0.1:8000`, override with `FASTAPI_URL`).
+So every call is same-origin and cookie-friendly.
+
+**Why a separate service:** it owns the two things that benefit from being
+isolated — talking to the LLM provider, and OAuth2 (bearer tokens + social
+sign-in). All *marketplace data* (requirements, bids, providers, ranking, the
+audit log) stays in the Next.js app, which remains the single writer of the
+store. The FastAPI service pulls the deterministic context it needs (a
+requirement, a ranked shortlist, the buyer's own offers) from the app's read
+endpoints over HTTP, and records AI activity back through
+`POST /api/internal/record-event`.
+
+### What it owns
+
+| Area | Endpoints |
+| --- | --- |
+| Health | `GET /fastapi/health` |
+| AI status | `GET /fastapi/v1/ai/status?probe=1` |
+| AI capabilities (JWT required) | `POST /fastapi/v1/ai/parse-requirement`, `…/score-bid`, `…/draft-bid`, `…/summarize`, `…/copilot` |
+| OAuth2 tokens | `POST /fastapi/v1/oauth2/token` |
+| Google sign-in | `GET /fastapi/v1/oauth2/authorize/google`, `GET /fastapi/v1/oauth2/callback/google` |
+| Revoke | `POST /fastapi/v1/oauth2/revoke` |
+
+The five AI endpoints speak the **identical contract** to the Next.js
+`/api/ai/*` routes (`{ ok, data, error }` envelope, the same `meta`
+provenance, the same zod-mirrored validation), so the frontend treats them as
+one API and falls back to the Next.js implementation if the service is down.
+They **require a signed-in account** (a bearer JWT — see below); the status
+endpoint is public so the header chip works before login.
+
+### OAuth2 — how you end up signed in
+
+The service issues opaque HS256 **JWTs** carried in the httpOnly
+`xmarket_jwt` cookie (or an `Authorization: Bearer` header). Three ways to get
+one, all via `POST /v1/oauth2/token`:
+
+- **`grant_type=password`** — email + password (the existing accounts), returns
+  a JWT. This is the "bearer token for API/AI calls" flow.
+- **`grant_type=session`** — trades the existing `xmarket_session` cookie
+  (password login) for a JWT with no re-entry. The frontend fires this once,
+  right after login and before the first AI call, so a password user is
+  already authenticated to the AI service.
+- **`grant_type=authorization_code`** — Google social sign-in (below).
+
+The Next.js app verifies `xmarket_jwt` in `currentAccount()` (same signing
+key), so a Google sign-in — which only sets `xmarket_jwt` — signs the user into
+**both** halves of the app at once. Password login still works exactly as
+before (`xmarket_session`); the JWT is additive. Sign-out clears both cookies.
+
+### Google sign-in (optional)
+
+1. `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `.env.local` (OAuth client
+   type **Web application**), adding the callback URI the service reports to
+   the authorized redirect URIs.
+2. Restart `npm run py:dev`.
+3. The sign-in pages show **Continue with Google**; the round trip is
+   `/fastapi/v1/oauth2/authorize/google → Google → /fastapi/v1/oauth2/callback/google`,
+   which sets `xmarket_jwt` and returns you to the app signed in.
+
+Without credentials the button reports that Google sign-in is not configured,
+and email/password sign-in is unaffected.
+
+### Run / test it
+
+```bash
+npm run py:install
+npm run py:dev
+curl -s localhost:3000/fastapi/health              # service + AI + googleSignIn flags
+curl -s localhost:3000/fastapi/v1/ai/status        # which engine is answering
+# password grant -> JWT (then call any /fastapi/v1/ai/* with the cookie or Bearer)
+curl -s -X POST localhost:3000/fastapi/v1/oauth2/token \
+  -d "grant_type=password&username=you@company.com&password=…&role=buyer"
+```
+
+With no `GEMINI_API_KEY` the service answers from the deterministic heuristic
+engine and labels it `mode: "heuristic"` — exactly like the built-in routes.
 
 ---
 

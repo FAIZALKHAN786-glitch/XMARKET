@@ -25,7 +25,7 @@ export const POST = route(
     const account = await findByEmail(input.email);
     // Same message whether the email is unknown or the password is wrong —
     // otherwise this endpoint becomes an email enumerator.
-    const invalid = new ApiError("auth", "Email or password is incorrect.");
+    const invalid = new ApiError("unauthorized", "Email or password is incorrect.");
 
     if (!account) throw invalid;
     if (input.role && account.role !== input.role) throw invalid;

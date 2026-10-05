@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Pool } from "pg";
@@ -20,6 +20,10 @@ import type { Account } from "@/lib/types";
  */
 
 const COOKIE = "xmarket_session";
+/** Issued by the FastAPI OAuth2 service (Google sign-in / session upgrade). */
+const JWT_COOKIE = "xmarket_jwt";
+const JWT_ISSUER = "xmarket";
+const JWT_AUDIENCE = "xmarket-api";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const SESSIONS_FILE = path.join(process.cwd(), "data", "sessions.json");
 
@@ -181,16 +185,108 @@ export async function currentToken(): Promise<string | null> {
   return store.get(COOKIE)?.value ?? null;
 }
 
-/** The signed-in account, or null. Re-read every call so revocation is instant. */
+/**
+ * The signed-in account, or null. Re-read every call so revocation is instant.
+ *
+ * Two ways to be signed in:
+ *   1. `xmarket_session` — an opaque token backed by a revocable session row
+ *      (password login). Checked first, so its revocation semantics win.
+ *   2. `xmarket_jwt` — a stateless HS256 bearer token issued by the FastAPI
+ *      OAuth2 service (Google sign-in, or the one-time "session grant" that
+ *      upgrades a password login to a bearer token). Valid until it expires.
+ */
 export async function currentAccount(): Promise<Account | null> {
-  const token = await currentToken();
-  if (!token) return null;
+  const store = await cookies();
 
-  const row = await readSessionRow(token);
-  if (!isValid(row)) return null;
+  const token = store.get(COOKIE)?.value ?? null;
+  if (token) {
+    const row = await readSessionRow(token);
+    if (isValid(row)) {
+      const all = await listAccounts();
+      const account = all.find((a) => a.id === row.accountId);
+      if (account) return account;
+    }
+  }
 
-  const all = await listAccounts();
-  return all.find((a) => a.id === row.accountId) ?? null;
+  const jwt = store.get(JWT_COOKIE)?.value ?? null;
+  if (jwt) {
+    const sub = verifyJwt(jwt)?.sub;
+    if (typeof sub === "string" && sub) {
+      const all = await listAccounts();
+      return all.find((a) => a.id === sub) ?? null;
+    }
+  }
+
+  return null;
+}
+
+/* ------------------------------------------------- FastAPI-issued bearer JWT */
+
+/**
+ * The key the FastAPI service signs `xmarket_jwt` with. Same environment
+ * chain, so a single `.env.local` configures both halves of the app.
+ */
+export function jwtSecret(): string {
+  return (
+    process.env.XMARKET_OAUTH2_SECRET ??
+    process.env.JWT_SECRET ??
+    process.env.XMARKET_SESSION_SECRET ??
+    "unset-configure-me"
+  );
+}
+
+function b64urlDecode(input: string): Buffer {
+  const b64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+  return Buffer.from(b64 + pad, "base64");
+}
+
+/**
+ * Verify an HS256 JWT issued by the FastAPI service. Returns the claims on
+ * success, or null on any failure. Hand-rolled (no dependency): the token is
+ * a plain header.payload.signature, so HMAC-SHA256 over the first two parts
+ * is the whole verification.
+ */
+export function verifyJwt(token: string): Record<string, unknown> | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, signatureB64] = parts;
+
+  let header: { alg?: string };
+  try {
+    header = JSON.parse(b64urlDecode(headerB64).toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (header.alg !== "HS256") return null; // reject anything else outright
+
+  const expected = createHmac("sha256", jwtSecret())
+    .update(`${headerB64}.${payloadB64}`)
+    .digest();
+  let provided: Buffer;
+  try {
+    provided = b64urlDecode(signatureB64);
+  } catch {
+    return null;
+  }
+  if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
+    return null;
+  }
+
+  let claims: Record<string, unknown>;
+  try {
+    claims = JSON.parse(b64urlDecode(payloadB64).toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (claims.iss !== JWT_ISSUER) return null;
+  const aud = claims.aud;
+  if (aud !== JWT_AUDIENCE && !(Array.isArray(aud) && aud.includes(JWT_AUDIENCE))) {
+    return null;
+  }
+  const exp = typeof claims.exp === "number" ? claims.exp : null;
+  if (exp === null || exp * 1000 <= Date.now()) return null;
+  return claims;
 }
 
 /* ------------------------------------------------------------------- writes */
@@ -221,6 +317,10 @@ export async function clearSession(): Promise<void> {
   if (token) await markRevoked(token);
   const store = await cookies();
   store.delete(COOKIE);
+  // The FastAPI-issued bearer token has no server-side row to revoke; dropping
+  // the cookie ends it for this browser (it would otherwise stay valid until
+  // expiry and keep the user signed in).
+  store.delete(JWT_COOKIE);
 }
 
 /**
