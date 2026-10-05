@@ -9,6 +9,7 @@ import {
   type ChatResult,
 } from "./llm";
 import { recordEvent, rank } from "./repo";
+import { coveredTags, tagCoverage as coverageOf, tagCovered } from "../tags";
 import {
   comparisonSummarySchema,
   draftBidSchema,
@@ -546,9 +547,7 @@ export function heuristicSemanticFit(
   // focused pitch look thin, but coverage still has to be earned.
   const coverage = Math.min(1, reqTokens.size ? overlap / Math.min(reqTokens.size, 30) : 0);
 
-  const tagCoverage = requirement.tags.length
-    ? bid.coversTags.filter((t) => requirement.tags.includes(t)).length / requirement.tags.length
-    : 0;
+  const tagCoverage = coverageOf(requirement.tags, bid.coversTags, 0);
 
   // Concrete proposals name numbers, methods and standards.
   const specificity = [
@@ -560,7 +559,7 @@ export function heuristicSemanticFit(
   const lengthSignal = Math.min(1, bid.pitch.split(/\s+/).length / 90);
   const gaps: string[] = [];
   for (const tag of requirement.tags) {
-    if (!bid.coversTags.includes(tag)) gaps.push(`Does not address “${tag}”.`);
+    if (!tagCovered(tag, bid.coversTags)) gaps.push(`Does not address “${tag}”.`);
   }
 
   // Tag coverage is the strongest single signal a buyer can verify, so it
@@ -570,7 +569,7 @@ export function heuristicSemanticFit(
     coverage * 22 + tagCoverage * 40 + specificity * 22 + lengthSignal * 16;
   const score = Math.round(Math.max(5, Math.min(97, raw)));
 
-  const addressed = bid.coversTags.filter((t) => requirement.tags.includes(t));
+  const addressed = coveredTags(requirement.tags, bid.coversTags);
 
   return {
     score,

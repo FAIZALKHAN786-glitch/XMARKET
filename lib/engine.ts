@@ -6,6 +6,7 @@ import type {
   ScoreFactor,
   Weights,
 } from "./types";
+import { coveredTags, tagCoverage as coverageOf } from "./tags";
 
 export const DEFAULT_WEIGHTS: Weights = {
   budget: 0.35,
@@ -100,9 +101,7 @@ function scoreTimeline(bid: Bid, req: Requirement) {
  * Category fit, claimed-tag coverage, and provider track record.
  */
 function scoreRelevance(bid: Bid, req: Requirement, provider?: Provider) {
-  const tagCoverage = req.tags.length
-    ? bid.coversTags.filter((t) => req.tags.includes(t)).length / req.tags.length
-    : 0.7;
+  const tagCoverage = coverageOf(req.tags, bid.coversTags, 0.7);
 
   const categoryFit = provider?.categories.includes(req.category) ? 1 : 0.22;
   const rating = provider ? (provider.rating - 3) / 2 : 0.5; // 3★..5★ -> 0..1
@@ -118,7 +117,7 @@ function scoreRelevance(bid: Bid, req: Requirement, provider?: Provider) {
     response * 0.06 +
     verified * 0.04;
 
-  const claimed = req.tags.filter((t) => bid.coversTags.includes(t)).length;
+  const claimed = coveredTags(req.tags, bid.coversTags).length;
 
   return {
     score: clamp(raw * 100),

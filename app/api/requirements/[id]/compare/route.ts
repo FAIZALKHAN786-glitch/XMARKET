@@ -7,6 +7,7 @@ import {
   rank,
 } from "@/lib/server/repo";
 import { rankQuery } from "@/lib/server/schema";
+import { tagCoverage as coverageOf } from "@/lib/tags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,10 +70,7 @@ export const GET = route(async (request: Request, ctx: Ctx) => {
         priceVsCeiling: row.bid.price / requirement.budgetMax,
         priceVsTarget: row.bid.price / requirement.budgetTarget,
         bufferDays: available - row.bid.deliveryDays,
-        tagCoverage: requirement.tags.length
-          ? row.bid.coversTags.filter((t) => requirement.tags.includes(t)).length /
-            requirement.tags.length
-          : 0,
+        tagCoverage: coverageOf(requirement.tags, row.bid.coversTags, 0),
       },
     })),
     benchmarks: {
