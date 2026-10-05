@@ -1,4 +1,4 @@
-import { dbPath, getDb, isWritable } from "@/lib/server/db";
+import { dbKind, dbPath, getDb, isWritable } from "@/lib/server/db";
 import { ok, route } from "@/lib/server/http";
 import { status as llmStatus } from "@/lib/server/llm";
 
@@ -13,6 +13,7 @@ export const GET = route(async () => {
     version: 1,
     time: new Date().toISOString(),
     database: {
+      driver: dbKind(),
       path: dbPath(),
       writable: isWritable(),
       mode: isWritable() ? "persistent" : "in-memory",

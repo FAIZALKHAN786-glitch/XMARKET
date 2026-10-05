@@ -497,7 +497,23 @@ function ProviderView({
   ReturnType<typeof useStore>,
   "requirements" | "bids" | "providers" | "weights" | "meProviderId"
 >) {
-  const me = providers.find((p) => p.id === meProviderId)!;
+  // Not asserted: on a fresh store no providers exist yet, so this resolves to
+  // `undefined`. Without the guard below, the opportunities map throws on
+  // `me.categories`.
+  const me = providers.find((p) => p.id === meProviderId);
+
+  if (!me) {
+    return (
+      <div className="frame py-16">
+        <EmptyState
+          icon={<BadgeCheck className="size-5" />}
+          title="No provider profile on this deployment"
+          body="The provider dashboard needs at least one registered provider to show opportunities and your offers. Add providers to the store, or switch to the buyer view."
+        />
+      </div>
+    );
+  }
+
   const myBids = bids.filter((b) => b.providerId === meProviderId);
 
   const open = requirements.filter(

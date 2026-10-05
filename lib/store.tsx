@@ -13,6 +13,7 @@ import { BIDS, BUYERS, ME_BUYER, ME_PROVIDER, PROVIDERS, REQUIREMENTS } from "./
 import { DEFAULT_WEIGHTS } from "./engine";
 import { api, isApiError, type AiStatus, type AuditEvent } from "./api-client";
 import type {
+  Account,
   Bid,
   BidStatus,
   Buyer,
@@ -73,6 +74,8 @@ interface StoreValue {
   /* identity */
   meBuyerId: string;
   meProviderId: string;
+  /** The signed-in account, or null when browsing anonymously. */
+  account: Account | null;
 
   /* actions */
   refresh: () => Promise<void>;
@@ -105,6 +108,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [providers, setProviders] = useState<Provider[]>(PROVIDERS);
   const [buyers, setBuyers] = useState<Buyer[]>(BUYERS);
   const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [account, setAccount] = useState<Account | null>(null);
   const [prefs, setPrefs] = useState<Prefs>({
     role: "buyer",
     weights: DEFAULT_WEIGHTS,
@@ -135,6 +139,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       /* first run */
     }
     setHydrated(true);
+  }, []);
+
+  // Who is signed in. Fetched once; auth changes navigate and remount.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/session")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!cancelled && json?.ok) setAccount(json.data.account ?? null);
+      })
+      .catch(() => {
+        /* anonymous */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -189,6 +209,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refresh]);
 
+  /* -------------------------------------------------------- live updates */
+
+  // Server-sent events. The stream only says that something changed, so the
+  // response is a refetch; bursts are coalesced so a bulk import does not
+  // trigger one request per record.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      return;
+    }
+
+    let timer: number | undefined;
+    let source: EventSource | undefined;
+
+    const scheduleRefresh = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        void refresh();
+      }, 250);
+    };
+
+    try {
+      source = new EventSource("/api/stream");
+      for (const type of [
+        "requirement.created",
+        "requirement.status",
+        "bid.created",
+        "bid.status",
+        "db.seeded",
+      ]) {
+        source.addEventListener(type, scheduleRefresh);
+      }
+      source.onerror = () => {
+        // EventSource reconnects by itself; the offline banner is driven by
+        // refresh() failing, so there is nothing to do here.
+      };
+    } catch {
+      /* No streaming support — polling on user actions still works. */
+    }
+
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      source?.close();
+    };
+  }, [refresh]);
+
   /* ----------------------------------------------------------------- toasts */
 
   const pushToast = useCallback((toast: Omit<Toast, "id">) => {
@@ -225,7 +291,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       buyers,
       events,
       saved: prefs.saved,
-      role: prefs.role,
+      // A signed-in user's role is a fact about their account, not a preference.
+      // Letting the header toggle flip it let a seller see buyer-only actions.
+      role: account ? (account.role === "seller" ? "provider" : "buyer") : prefs.role,
       weights: prefs.weights,
       hydrated,
       synced,
@@ -234,8 +302,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       aiStatus,
       busy,
       toasts,
-      meBuyerId: ME_BUYER,
-      meProviderId: ME_PROVIDER,
+      account,
+      meBuyerId: account?.role === "buyer" ? account.id : ME_BUYER,
+      meProviderId:
+        account?.role === "seller" && account.merchantId
+          ? account.merchantId
+          : ME_PROVIDER,
       pushToast,
       dismissToast,
       refresh,

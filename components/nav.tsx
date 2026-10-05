@@ -18,6 +18,7 @@ import { cn } from "@/lib/cn";
 import { useStore } from "@/lib/store";
 import { Logo } from "./brand";
 import { NotificationBell, SearchLauncher } from "./header-tools";
+import { LogOut } from "lucide-react";
 import { OfflineBanner, SystemStatus } from "./system-status";
 import { Avatar, ButtonLink, Segmented } from "./ui/primitives";
 
@@ -34,7 +35,28 @@ const PROVIDER_NAV = [
 ];
 
 export function RoleSwitch({ className }: { className?: string }) {
-  const { role, setRole } = useStore();
+  const { role, setRole, account } = useStore();
+  // Signed in, the role comes from the account and cannot be toggled — so this
+  // slot becomes the way out instead.
+  if (account) {
+    return (
+      <button
+        type="button"
+        onClick={async () => {
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.href = "/signin";
+        }}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-[0.8125rem] text-white/70 transition-colors duration-150 hover:border-white/40 hover:text-white",
+          className
+        )}
+      >
+        <LogOut className="size-3.5" />
+        Sign out
+      </button>
+    );
+  }
+
   return (
     <Segmented
       size="sm"
@@ -182,9 +204,14 @@ export function MobileTabBar() {
   const pathname = usePathname();
   const { role } = useStore();
   const links = (role === "buyer" ? BUYER_NAV : PROVIDER_NAV).slice(0, 3);
+  // Four fixed slots: two primary destinations, then Post and Offers. The
+  // primary pair has to skip those two hrefs — PROVIDER_NAV already lists
+  // /proposals second, so taking links[0] and links[1] verbatim put the same
+  // href in two slots and React warned about the duplicate key. The tab grid
+  // is grid-cols-4, so this must yield exactly four distinct destinations.
+  const pinned = ["/post", "/proposals"];
   const all = [
-    links[0],
-    links[1],
+    ...links.filter((link) => !pinned.includes(link.href)).slice(0, 2),
     { href: "/post", label: role === "buyer" ? "Post" : "Bid", icon: Plus },
     { href: "/proposals", label: "Offers", icon: FileText },
   ];

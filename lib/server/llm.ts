@@ -455,6 +455,16 @@ export function redact(text: string): string {
     .replace(/(Bearer\s+)[A-Za-z0-9._-]{6,}/gi, "$1[redacted]");
 }
 
+/**
+ * Thinking budget for the current model, or undefined to omit the field.
+ * 3.x takes `thinkingLevel`; 2.5 and earlier take nothing from us.
+ */
+function thinkingConfig(model: string): { thinkingLevel: string } | undefined {
+  if (!/^gemini-3/i.test(model)) return undefined;
+  const level = (process.env.GEMINI_THINKING_LEVEL ?? "low").toLowerCase();
+  return { thinkingLevel: ["low", "medium", "high"].includes(level) ? level : "low" };
+}
+
 function endpoint(c: Config) {
   switch (c.provider) {
     case "anthropic":
@@ -512,12 +522,6 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
 
   if (c.provider === "gemini") {
     const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
-    // Gemini 3.x replaced the numeric thinking_budget of 2.x with the
-    // thinkingLevel enum and deprecated the sampling parameters: temperature is
-    // accepted but ignored today and slated to be rejected outright. Pin
-    // thinking to "low" — these calls are extraction, scoring and short copy —
-    // and drop temperature for 3.x only, so 2.x payloads stay as they were.
-    const isGemini3 = /^(?:gemini-)?3(?:[.-]|$)/.test(c.model);
     return {
       systemInstruction: system ? { parts: [{ text: system }] } : undefined,
       contents: messages
@@ -527,9 +531,15 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
           parts: [{ text: m.content }],
         })),
       generationConfig: {
-        ...(isGemini3 ? { thinkingConfig: { thinkingLevel: "low" } } : { temperature }),
+        temperature,
         maxOutputTokens: maxTokens,
         responseMimeType: options.schema ? "application/json" : "text/plain",
+        // Gemini 3.x reasons before answering, and those tokens come out of
+        // maxOutputTokens — enough of them truncates the JSON and looks like a
+        // model failure. These prompts are extraction, not deliberation, so ask
+        // for minimal thinking. The field only exists on 3.x; sending it to a
+        // 2.5 model is a 400.
+        ...(thinkingConfig(c.model) ? { thinkingConfig: thinkingConfig(c.model) } : {}),
       },
     };
   }

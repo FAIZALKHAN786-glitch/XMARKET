@@ -139,3 +139,41 @@ export interface Weights {
    */
   semantic?: number;
 }
+
+/* ----------------------------------------------------------------- accounts */
+
+export type AccountRole = "buyer" | "seller";
+
+/**
+ * A signed-in user. Buyers and sellers share one table because they share one
+ * login mechanism, but a seller carries the merchant identity the buyer side
+ * never has.
+ *
+ * `passwordHash` must never leave the server — `publicAccount()` strips it.
+ */
+export interface Account {
+  id: string;
+  role: AccountRole;
+  email: string;
+  passwordHash: string;
+  displayName: string;
+  createdAt: string;
+  /** Buyer-only. */
+  company?: string;
+  /** Seller-only. Issued by the platform, never chosen by the seller. */
+  merchantId?: string;
+  merchantName?: string;
+  shopName?: string;
+  /** The single category this merchant trades in. Drives requirement routing. */
+  domain?: CategoryId;
+  /**
+   * 0-100. Starts at 50 for everyone and moves with delivery outcomes, so
+   * ranking reflects record rather than how long an account has existed.
+   */
+  performanceScore: number;
+  /**
+   * Absent on accounts created before verification existed, which is treated as
+   * verified so introducing the check does not lock anyone out.
+   */
+  emailVerified?: boolean;
+}
