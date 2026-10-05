@@ -18,6 +18,21 @@ check() { # name expected_code actual_code [body]
 }
 code() { curl -s -o /tmp/out.json -w "%{http_code}" "$@"; }
 
+# --------------------------------------------------------------- preflight
+# The bid-lifecycle, AI and compare checks operate on the demo fixture
+# requirement `r_mech` and its offer `bid_mech_atlas`. On an empty store those
+# records do not exist, so ten checks would 404 for reasons that have nothing
+# to do with the code under test. Say so instead of reporting ten failures.
+if [ "$(code "$B/api/requirements/r_mech")" != "200" ]; then
+  printf "\n  Cannot reach the demo fixtures this suite asserts against.\n"
+  printf "  It needs the sample requirement r_mech, which an empty store lacks.\n\n"
+  printf "  Run the server with the sample data and try again:\n\n"
+  printf "    XMARKET_SEED=demo npm run dev     # terminal 1\n"
+  printf "    npm run api:smoke                 # terminal 2\n\n"
+  printf "  (or set XMARKET_SEED=demo in .env.local and restart)\n\n"
+  exit 2
+fi
+
 if [ "$KEEP" = "1" ]; then
   echo "(running with --keep: the store will not be reset, so this run's test records stay behind)"
 else

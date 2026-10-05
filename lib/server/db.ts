@@ -155,15 +155,26 @@ async function pool(state: DbState): Promise<pg.Pool> {
 /* ------------------------------------------------------------------- seed */
 
 /**
- * `XMARKET_SEED=demo` restores the invented demo dataset. The default is an
- * empty store: a marketplace should show records that were actually posted or
- * imported, not fabricated ones. Categories are taxonomy rather than demo
- * data, so they stay in lib/data.ts and are not part of the store.
+ * Seeding is opt-in and the default is an empty store: a marketplace should
+ * show records that were actually posted or imported, not fabricated ones.
+ *
+ *   (unset)              empty — no buyers, providers, requirements or bids
+ *   XMARKET_SEED=parties the people who can trade (buyers + providers) but no
+ *                        requirements and no bids. Use this to demonstrate a
+ *                        buyer workflow from a clean slate: nothing is
+ *                        invented about procurement activity, and there is
+ *                        somebody for the offers to come from.
+ *   XMARKET_SEED=demo    the full invented demo dataset
+ *
+ * Categories are taxonomy rather than demo data, so they stay in lib/data.ts
+ * and are never part of the store.
  */
 function seeded(): Database {
-  const demo = (process.env.XMARKET_SEED ?? "").toLowerCase() === "demo";
+  const seed = (process.env.XMARKET_SEED ?? "").toLowerCase();
+  const demo = seed === "demo";
+  const parties = seed === "parties";
 
-  if (!demo) {
+  if (!demo && !parties) {
     return {
       version: DB_VERSION,
       buyers: [],
@@ -177,6 +188,26 @@ function seeded(): Database {
           type: "db.seeded",
           actor: "system",
           summary: "Started empty. Post a requirement or run npm run data:import.",
+        },
+      ],
+      aiCache: {},
+    };
+  }
+
+  if (parties) {
+    return {
+      version: DB_VERSION,
+      buyers: structuredClone(BUYERS),
+      providers: structuredClone(PROVIDERS),
+      requirements: [],
+      bids: [],
+      events: [
+        {
+          id: "ev_seed",
+          at: new Date().toISOString(),
+          type: "db.seeded",
+          actor: "system",
+          summary: `Started with ${BUYERS.length} buyers and ${PROVIDERS.length} providers, but no requirements or offers`,
         },
       ],
       aiCache: {},
