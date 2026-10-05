@@ -195,6 +195,7 @@ export async function createBuyer(input: {
     displayName: input.displayName.trim(),
     company: input.company?.trim() || undefined,
     performanceScore: 50,
+    emailVerified: false,
     createdAt: new Date().toISOString(),
   };
 
@@ -256,6 +257,7 @@ export async function createSeller(input: {
     // Every merchant starts level. The score moves with delivery outcomes, so
     // ranking reflects record rather than seniority.
     performanceScore: 50,
+    emailVerified: false,
     createdAt: new Date().toISOString(),
   };
 
@@ -407,4 +409,111 @@ export async function consumeResetToken(token: string): Promise<string | null> {
   const next = all.map((r) => (r.token === token ? { ...r, usedAt: now } : r));
   await fs.writeFile(file, JSON.stringify(next, null, 2), "utf8");
   return hit.accountId;
+}
+
+/* ------------------------------------------------------ email verification */
+
+const VERIFY_SCHEMA = `
+CREATE TABLE IF NOT EXISTS email_verifications (
+  token       text PRIMARY KEY,
+  account_id  text NOT NULL,
+  expires_at  timestamptz NOT NULL,
+  used_at     timestamptz
+);
+`;
+
+const VERIFY_TTL_MS = 1000 * 60 * 60 * 24;
+
+type VerifyRow = {
+  token: string;
+  accountId: string;
+  expiresAt: string;
+  usedAt: string | null;
+};
+
+const VERIFY_FILE = () =>
+  path.join(process.cwd(), "data", "email-verifications.json");
+
+/**
+ * Issue an email-verification token.
+ *
+ * Same shape as the password reset: single use, time limited, and the token is
+ * returned to the caller because no mail transport exists yet. In production
+ * this goes in the email and the endpoint returns only a confirmation.
+ */
+export async function createVerificationToken(
+  email: string
+): Promise<string | null> {
+  const account = await findByEmail(email);
+  if (!account) return null;
+
+  if (dbKind() === "postgres") {
+    await getPool().query(VERIFY_SCHEMA);
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + VERIFY_TTL_MS).toISOString();
+    await getPool().query(
+      "INSERT INTO email_verifications (token, account_id, expires_at) VALUES ($1,$2,$3)",
+      [token, account.id, expiresAt]
+    );
+    return token;
+  }
+
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + VERIFY_TTL_MS).toISOString();
+  let all: VerifyRow[] = [];
+  try {
+    all = JSON.parse(await fs.readFile(VERIFY_FILE(), "utf8"));
+  } catch {
+    /* first token */
+  }
+  await fs.mkdir(path.dirname(VERIFY_FILE()), { recursive: true });
+  await fs.writeFile(
+    VERIFY_FILE(),
+    JSON.stringify([...all, { token, accountId: account.id, expiresAt, usedAt: null }], null, 2),
+    "utf8"
+  );
+  return token;
+}
+
+/** Consume a verification token and mark the account verified. */
+export async function consumeVerificationToken(
+  token: string
+): Promise<string | null> {
+  const now = new Date().toISOString();
+  let accountId: string | null = null;
+
+  if (dbKind() === "postgres") {
+    await getPool().query(VERIFY_SCHEMA);
+    const { rows } = await getPool().query<{ accountId: string }>(
+      `UPDATE email_verifications SET used_at = $1
+        WHERE token = $2 AND used_at IS NULL AND expires_at > now()
+        RETURNING account_id AS "accountId"`,
+      [now, token]
+    );
+    accountId = rows[0]?.accountId ?? null;
+  } else {
+    let all: VerifyRow[] = [];
+    try {
+      all = JSON.parse(await fs.readFile(VERIFY_FILE(), "utf8"));
+    } catch {
+      return null;
+    }
+    const hit = all.find(
+      (r) => r.token === token && !r.usedAt && new Date(r.expiresAt).getTime() > Date.now()
+    );
+    if (!hit) return null;
+    accountId = hit.accountId;
+    const next = all.map((r) => (r.token === token ? { ...r, usedAt: now } : r));
+    await fs.writeFile(VERIFY_FILE(), JSON.stringify(next, null, 2), "utf8");
+  }
+
+  if (!accountId) return null;
+
+  const accounts = await readAll();
+  const index = accounts.findIndex((a) => a.id === accountId);
+  if (index === -1) return null;
+  const next = [...accounts];
+  next[index] = { ...next[index], emailVerified: true };
+  await writeAll(next);
+  return accountId;
 }

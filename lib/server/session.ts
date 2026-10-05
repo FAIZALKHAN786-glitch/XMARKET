@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Pool } from "pg";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { dbKind } from "./db";
 import { listAccounts } from "./accounts";
 import type { Account } from "@/lib/types";
@@ -145,6 +145,29 @@ export async function revokeAllFor(accountId: string): Promise<void> {
   await fs.writeFile(SESSIONS_FILE, JSON.stringify(next, null, 2), "utf8");
 }
 
+
+/**
+ * Mark the session cookie Secure when the request really arrived over TLS.
+ *
+ * Keying this off NODE_ENV meant a production build behind a local proxy, or a
+ * preview over plain HTTP, would set a Secure cookie the browser then refused
+ * to send — signing the user straight back out. Reading the forwarded protocol
+ * means the flag follows the actual transport. XMARKET_FORCE_SECURE_COOKIES
+ * overrides it for deployments where the proxy strips the header.
+ */
+async function cookieSecure(): Promise<boolean> {
+  if (process.env.XMARKET_FORCE_SECURE_COOKIES === "true") return true;
+  if (process.env.XMARKET_FORCE_SECURE_COOKIES === "false") return false;
+  try {
+    const h = await headers();
+    const proto = h.get("x-forwarded-proto");
+    if (proto) return proto.split(",")[0].trim() === "https";
+  } catch {
+    /* outside a request scope */
+  }
+  return false;
+}
+
 /* -------------------------------------------------------------------- reads */
 
 function isValid(row: SessionRow | null): row is SessionRow {
@@ -187,7 +210,7 @@ export async function writeSession(account: Account): Promise<void> {
   store.set(COOKIE, row.token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: await cookieSecure(),
     path: "/",
     maxAge: MAX_AGE_SECONDS,
   });

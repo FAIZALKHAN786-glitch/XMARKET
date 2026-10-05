@@ -1,9 +1,10 @@
 import { CATEGORIES } from "@/lib/data";
 import { daysUntil } from "@/lib/engine";
 import type { Requirement } from "@/lib/types";
-import { ok, readBody, readQuery, route } from "@/lib/server/http";
+import { ApiError, ok, readBody, readQuery, route } from "@/lib/server/http";
 import { createRequirement, listBids, listRequirements } from "@/lib/server/repo";
 import { requirementCreate, requirementQuery } from "@/lib/server/schema";
+import { requireAccount } from "@/lib/server/authz";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,14 +76,34 @@ export const GET = route(async (request: Request) => {
 }, "GET /api/requirements");
 
 /** POST /api/requirements — publish a requirement. */
+/**
+ * Posting requires a verified address.
+ *
+ * Without it anyone can register with an address they do not control and post
+ * requirements that real sellers spend time bidding on. Reading rather than
+ * bidding is left open — a marketplace should stay browsable.
+ */
+async function assertVerifiedBuyer() {
+  const account = await requireAccount();
+  // Accounts from before verification existed have no flag; treat absence as
+  // verified so introducing this does not lock anyone out.
+  if (account.emailVerified === false) {
+    throw new ApiError("auth", "Verify your email address before posting.");
+  }
+  return account;
+}
+
 export const POST = route(async (request: Request) => {
+  const account = await assertVerifiedBuyer();
   const input = await readBody(request, requirementCreate);
   const requirement = await createRequirement({
     title: input.title,
     summary: input.summary,
     description: input.description,
     category: input.category,
-    buyerId: input.buyerId ?? "b_me",
+    // The poster is the signed-in buyer. A caller-supplied buyerId is ignored,
+    // otherwise anyone could post requirements attributed to someone else.
+    buyerId: account.id,
     budgetMax: input.budgetMax,
     budgetTarget: input.budgetTarget,
     deadline: input.deadline.toISOString(),

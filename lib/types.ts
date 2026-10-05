@@ -171,4 +171,9 @@ export interface Account {
    * ranking reflects record rather than how long an account has existed.
    */
   performanceScore: number;
+  /**
+   * Absent on accounts created before verification existed, which is treated as
+   * verified so introducing the check does not lock anyone out.
+   */
+  emailVerified?: boolean;
 }
