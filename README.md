@@ -255,7 +255,7 @@ Copy `.env.example` to `.env.local` and set **one** key. The provider is auto-de
 | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-latest` |
-| Google Gemini | `GEMINI_API_KEY` | `gemini-2.5-flash` |
+| Google Gemini | `GEMINI_API_KEY` | `gemini-3.8-flash` |
 | Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
 | OpenRouter | `OPENROUTER_API_KEY` | `openai/gpt-4o-mini` |
 | Ollama (local) | `OLLAMA_BASE_URL` | `llama3.1` |

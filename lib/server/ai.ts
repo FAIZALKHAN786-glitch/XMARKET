@@ -127,13 +127,25 @@ export async function parseRequirement(
           {
             role: "system",
             content: systemPrompt(
-              `Convert a buyer's free-text brief into a structured procurement requirement.\n\nAvailable categories:\n${categoryLabels}\n\nReturn a JSON object with exactly these keys:\n{"title": string (max 140),\n "summary": string (one sentence, max 240),\n "description": string (2-4 paragraphs, keep the buyer's specifics),\n "category": one of the category ids above,\n "budgetMax": integer USD (hard ceiling),\n "budgetTarget": integer USD (what they hope to pay, <= budgetMax),\n "deadlineInDays": integer days until delivery is needed,\n "closingInDays": integer days the bidding window stays open (default 14),\n "location": string,\n "tags": string[] (3-8 short spec keywords used to score providers),\n "mustHaves": string[] (0-6 hard requirements),\n "confidence": number 0-1,\n "assumptions": string[] (anything you had to infer)}\n\nIf no budget is stated, infer a defensible range for the work described and list it as an assumption.`
+              `Convert a buyer's free-text brief into a structured procurement requirement.\n\nAvailable categories:\n${categoryLabels}\n\nReturn a JSON object with exactly these keys:\n{"title": string (max 140),\n "summary": string (one sentence, max 240),\n "description": string (2-4 paragraphs, keep the buyer's specifics),\n "category": one of the category ids above,\n "budgetMax": integer USD (hard ceiling),\n "budgetTarget": integer USD (what they hope to pay, <= budgetMax),\n "deadlineInDays": integer days until delivery is needed,\n "closingInDays": integer days the bidding window stays open (default 14),\n "location": string,\n "tags": string[] (3-8 short spec keywords used to score providers),\n "mustHaves": string[] (0-6 hard requirements),\n "confidence": number 0-1,\n "assumptions": string[] (anything you had to infer)}\n\nBudget rules:\n- budgetMax and budgetTarget are TOTAL project budgets in USD, never hourly, daily, monthly or per-unit rates.\n- Preserve an explicit total budget or hard ceiling. Never replace it with a rate mentioned elsewhere in the brief.\n- When only a rate is given, multiply it by the stated quantity, hours or duration only when the total scope is clear. Do not treat a delivery deadline as billable hours. Explain the calculation in assumptions.\n- If no total budget can be calculated, infer a defensible range for the full scope of work and clearly list the estimated budget and any inferred quantity or effort as assumptions.\n- Keep budgetTarget <= budgetMax. Do not invent a higher ceiling when the buyer states a hard cap.`
             ),
           },
           { role: "user", content: untrusted("buyer brief", brief) },
         ],
         { schema: parsedRequirementSchema, temperature: 0.2 }
       );
+      // A schema-valid reply can still mistake a unit/hourly rate for the whole
+      // project budget. Use the same $500 noise floor as extractMoney; the throw
+      // drops this answer and the fallback below labels the estimate and asks
+      // the buyer to review the numbers.
+      const hasRateLanguage =
+        /(?:\bper[\s-]+(?:hours?|hrs?|days?|weeks?|months?|units?|items?|pieces?)\b|\/\s*(?:h|hr|hrs|hour|hours|day|week|month|unit|item|piece)\b|\b(?:hourly|daily|weekly|monthly|unit[\s-]+(?:cost|price|rate))\b)/i.test(brief);
+      if (
+        hasRateLanguage &&
+        Math.min(result.value.budgetMax, result.value.budgetTarget) < 500
+      ) {
+        throw new Error("Model returned a likely rate instead of a total project budget.");
+      }
       return { data: result.value, meta: metaFrom(result) };
     },
     () => {
