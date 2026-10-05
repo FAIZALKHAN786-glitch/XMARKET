@@ -127,7 +127,7 @@ export async function parseRequirement(
           {
             role: "system",
             content: systemPrompt(
-              `Convert a buyer's free-text brief into a structured procurement requirement.\n\nAvailable categories:\n${categoryLabels}\n\nReturn a JSON object with exactly these keys:\n{"title": string (max 140),\n "summary": string (one sentence, max 240),\n "description": string (2-4 paragraphs, keep the buyer's specifics),\n "category": one of the category ids above,\n "budgetMax": integer USD (hard ceiling),\n "budgetTarget": integer USD (what they hope to pay, <= budgetMax),\n "deadlineInDays": integer days until delivery is needed,\n "closingInDays": integer days the bidding window stays open (default 14),\n "location": string,\n "tags": string[] (3-8 short spec keywords used to score providers),\n "mustHaves": string[] (0-6 hard requirements),\n "confidence": number 0-1,\n "assumptions": string[] (anything you had to infer)}\n\nBudget rules:\n- budgetMax and budgetTarget are TOTAL project budgets in USD, never hourly, daily, monthly or per-unit rates.\n- Preserve an explicit total budget or hard ceiling. Never replace it with a rate mentioned elsewhere in the brief.\n- When only a rate is given, multiply it by the stated quantity, hours or duration only when the total scope is clear. Do not treat a delivery deadline as billable hours. Explain the calculation in assumptions.\n- If no total budget can be calculated, infer a defensible range for the full scope of work and clearly list the estimated budget and any inferred quantity or effort as assumptions.\n- Keep budgetTarget <= budgetMax. Do not invent a higher ceiling when the buyer states a hard cap.`
+              `Convert a buyer's free-text brief into a structured procurement requirement.\n\nAvailable categories:\n${categoryLabels}\n\nReturn a JSON object with exactly these keys:\n{"title": string (max 140),\n "summary": string (one sentence, max 240),\n "description": string (2-4 paragraphs, keep the buyer's specifics),\n "category": one of the category ids above,\n "budgetMax": integer USD (hard ceiling),\n "budgetTarget": integer USD (what they hope to pay, <= budgetMax),\n "deadlineInDays": integer days until delivery is needed,\n "closingInDays": integer days the bidding window stays open (default 14),\n "location": string,\n "tags": string[] (3-8 short spec keywords used to score providers),\n "mustHaves": string[] (0-6 hard requirements),\n "confidence": number 0-1,\n "assumptions": string[] (anything you had to infer)}\n\nIf no budget is stated, infer a defensible range for the work described and list it as an assumption.\n\nBudget rules:\n- budgetMax is the TOTAL value of the whole engagement in USD, never a rate, a unit price or a per-period figure.\n- If the brief quotes a unit price (per unit, each, per item) and a quantity, multiply them.\n- If it quotes a recurring or period rate (per week, per month, per pallet, per trip, daily) and a term or frequency, multiply out to the whole term.\n- State the arithmetic in assumptions, e.g. "$115 x 500 units = $57,500 ceiling" or "$2,400/week x 14 weeks = $33,600 ceiling".\n- Never emit a unit price or a weekly rate as budgetMax. If you cannot derive the total, infer a defensible total for the whole engagement and say so.\n- If no budget is stated, infer a defensible range for the work described and list it as an assumption.`
             ),
           },
           { role: "user", content: untrusted("buyer brief", brief) },
@@ -146,12 +146,12 @@ export async function parseRequirement(
       ) {
         throw new Error("Model returned a likely rate instead of a total project budget.");
       }
-      return { data: result.value, meta: metaFrom(result) };
+      return { data: sanityCheck(result.value, brief), meta: metaFrom(result) };
     },
     () => {
       const started = Date.now();
       return {
-        data: heuristicParse(brief, defaults),
+        data: sanityCheck(heuristicParse(brief, defaults), brief),
         meta: heuristicMeta(started, "Extracted with pattern matching — review the numbers before publishing."),
       };
     },
@@ -178,6 +178,71 @@ const TAG_DICTIONARY = [
   "SMT", "0201", "AOI", "Conformal coating", "Traceability", "PCB layout", "Firmware",
   "ISO 9001", "PPAP", "EMC testing", "FCC pre-scan", "Prototyping", "Tooling",
 ];
+
+/**
+ * Language that means the buyer quoted a rate, not a total.
+ *
+ * This matters more than it looks: budgetMax is the denominator for every
+ * score on a requirement, so a weekly rate published as a total makes every
+ * genuine offer look ten times over budget and the whole ranking meaningless.
+ * "per week", "a month", "per pallet", "twice a week" — all of these are
+ * signs the figure on its own is not the value of the engagement.
+ */
+const RATE_LANGUAGE =
+  /\b(per|a|an|each|every|twice a|once a|daily|weekly|fortnightly|monthly|quarterly|annually|hourly)\s+(week|day|month|year|quarter|hour|shift|pallet|trip|drop|mile|km|unit|item|piece|head|seat|visit|call[- ]?out)\b|\b(weekly|daily|monthly|hourly|per[- ]unit|per[- ]week|per[- ]month|per[- ]pallet|per[- ]trip)\b/i;
+
+function rateLanguageIn(brief: string) {
+  const match = brief.match(RATE_LANGUAGE);
+  return match?.[0];
+}
+
+/**
+ * Last line of defence on the parsed budget, applied to model and heuristic
+ * output alike. It never silently rewrites a figure the buyer stated — it
+ * flags what it cannot verify, because a wrong ceiling is worse than a
+ * questioned one.
+ */
+function sanityCheck(draft: ParsedRequirement, brief: string): ParsedRequirement {
+  const assumptions = [...draft.assumptions];
+  let confidence = draft.confidence;
+  let budgetMax = draft.budgetMax;
+  let budgetTarget = draft.budgetTarget;
+
+  // 1. An implausibly small total cannot be the value of a whole engagement.
+  const floor = Number(process.env.XMARKET_MIN_BUDGET ?? 250);
+  if (Number.isFinite(budgetMax) && budgetMax > 0 && budgetMax < floor) {
+    assumptions.push(
+      `The parsed budget ($${budgetMax.toLocaleString()}) looked like a unit price or a rate rather than a total, ` +
+        `so it was raised to a $${floor.toLocaleString()} floor. Check this before publishing.`
+    );
+    budgetMax = floor;
+    budgetTarget = Math.min(budgetTarget, floor);
+    confidence = Math.min(confidence, 0.4);
+  }
+
+  // 2. The brief quotes a rate. Either the arithmetic is already spelled out
+  //    in the assumptions, or it is not — and then the ceiling needs checking.
+  const rate = rateLanguageIn(brief);
+  if (rate) {
+    // Only accept evidence of actual arithmetic. A generic "delivery assumed in
+    // 98 days" must not count — that mistake silently disabled this warning.
+    const explained = assumptions.some((a) =>
+      /[×xX*]\s*[\d$]|\$\s?[\d,]+\s*[×xX*]|\bmultiplied\b|\btotal for the\b/i.test(a)
+    );
+    if (!explained) {
+      assumptions.push(
+        `This brief quotes a rate ("${rate}"), so the ceiling above may be a rate rather than the total ` +
+          `for the whole engagement. Check that it reflects the full term before publishing.`
+      );
+      confidence = Math.min(confidence, 0.6);
+    }
+  }
+
+  if (assumptions.length === draft.assumptions.length && budgetMax === draft.budgetMax) {
+    return draft;
+  }
+  return { ...draft, budgetMax, budgetTarget, confidence, assumptions };
+}
 
 export function heuristicParse(
   brief: string,
