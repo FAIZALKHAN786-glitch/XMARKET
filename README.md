@@ -46,12 +46,16 @@ npm run data:import  # pull real public tenders in (see "Real data" below)
 
 That is a stale or half-written `.next` build — the HTML is served, but one or
 more of the JavaScript chunks it needs are missing, so the page never becomes
-interactive. It happens when a build and a dev server run at the same time, a
-build is interrupted, or code is updated over an old build.
+interactive. It used to happen whenever a production build and a dev server
+ran at the same time and wrote over each other's chunks; the dev server now
+compiles into its own folder (`.next-dev/`) so `npm run dev` and
+`npm run build && npm start` can safely run side by side. An interrupted build
+or upgrading Next.js over a very old build can still leave the folder in a
+half-written state, though:
 
 ```bash
 # stop the server, then:
-npm run rebuild      # wipes .next and builds clean
+npm run rebuild      # wipes .next and .next-dev and builds clean
 npm start            # or: npm run dev
 ```
 

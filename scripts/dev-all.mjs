@@ -13,6 +13,7 @@ const services = [
   {
     name: "Next.js",
     args: [NEXT_CLI, "dev", "-H", "0.0.0.0", "-p", "3000"],
+    env: { ...process.env, NEXT_DEV: "1", XMARKET_SEED: process.env.XMARKET_SEED ?? "demo" },
   },
   {
     name: "FastAPI",
@@ -105,6 +106,7 @@ for (const service of services) {
   try {
     child = spawn(process.execPath, service.args, {
       cwd: ROOT_DIR,
+      env: service.env ?? process.env,
       stdio: service.useIpcForShutdown
         ? ["inherit", "inherit", "inherit", "ipc"]
         : "inherit",

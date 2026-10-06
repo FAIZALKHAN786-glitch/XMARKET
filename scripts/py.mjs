@@ -195,7 +195,7 @@ async function dev() {
       "--app-dir",
       BACKEND_DIR,
       "--host",
-      "0.0.0.0",
+      "127.0.0.1",
       "--port",
       "8000",
     ],
