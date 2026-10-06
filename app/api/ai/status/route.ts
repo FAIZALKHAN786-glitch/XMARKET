@@ -51,6 +51,11 @@ export const GET = route(async (request: Request) => {
         label: "Shortlist narrative for buyers",
         endpoint: "POST /api/ai/summarize",
       },
+      {
+        id: "copilot",
+        label: "Role-aware marketplace assistant",
+        endpoint: "POST /api/ai/copilot",
+      },
     ],
     recent: events.filter((e) => e.type === "ai.invoked").slice(0, 8),
   });

@@ -346,12 +346,27 @@ export const api = {
           )
       ),
 
-    // New in the FastAPI service — no Next.js equivalent to fall back to.
-    copilot: (message: string, history: { role: "user" | "assistant"; content: string }[] = []) =>
-      fastapiRequest<{ reply: string; meta: AiMeta & { requirementsInContext?: number } }>(
-        "/v1/ai/copilot",
-        { method: "POST", json: { message, history } }
-      ),
+    copilot: (message: string, history: { role: "user" | "assistant"; content: string }[] = []) => {
+      type CopilotResponse = {
+        reply: string;
+        meta: AiMeta & {
+          requirementsInContext?: number;
+          role?: "buyer" | "seller";
+        };
+      };
+      return aiViaFastapi<CopilotResponse>(
+        () =>
+          fastapiRequest<CopilotResponse>("/v1/ai/copilot", {
+            method: "POST",
+            json: { message, history },
+          }),
+        () =>
+          request<CopilotResponse>("/api/ai/copilot", {
+            method: "POST",
+            json: { message, history },
+          })
+      );
+    },
   },
 };
 

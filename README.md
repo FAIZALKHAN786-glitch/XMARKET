@@ -272,9 +272,9 @@ isolated — talking to the LLM provider, and OAuth2 (bearer tokens + social
 sign-in). All *marketplace data* (requirements, bids, providers, ranking, the
 audit log) stays in the Next.js app, which remains the single writer of the
 store. The FastAPI service pulls the deterministic context it needs (a
-requirement, a ranked shortlist, the buyer's own offers) from the app's read
-endpoints over HTTP, and records AI activity back through
-`POST /api/internal/record-event`.
+requirement, a ranked shortlist, buyer-owned offers, or a seller's own bid
+history and public opportunities) from the app's read endpoints over HTTP,
+and records AI activity back through `POST /api/internal/record-event`.
 
 ### What it owns
 
@@ -380,7 +380,7 @@ engine and labels it `mode: "heuristic"` — exactly like the built-in routes.
 
 ## 🧠 AI & LLM integration
 
-Four capabilities sit on top of the deterministic engine. Each one is a prompt plus a deterministic fallback — **the fallback is not a placeholder**, and every response carries metadata saying which one answered.
+Five AI capabilities sit alongside the deterministic engine. Structured tasks use deterministic fallbacks; the conversational assistant requires a live model and labels its provenance. Every response carries metadata saying which engine answered.
 
 | Capability | Endpoint | What it does |
 | --- | --- | --- |
@@ -388,39 +388,42 @@ Four capabilities sit on top of the deterministic engine. Each one is a prompt p
 | Judge an offer | `POST /api/ai/score-bid` | 0–100 semantic fit for one proposal, with what it addresses and what it skips |
 | Draft a proposal | `POST /api/ai/draft-bid` | A provider-side pitch, milestones, tag coverage and risks for one requirement |
 | Explain a shortlist | `POST /api/ai/summarize` | Headline, recommendation, trade-offs and things to verify before awarding |
+| Ask the assistant | `POST /api/ai/copilot` | Multi-turn buyer/provider chat, grounded in the signed-in user's own workspace |
 | Health of the model | `GET /api/ai/status?probe=1` | Calls the provider for real, so a rejected key is reported as broken rather than merely "configured" |
 
-Responses look like `{ "data": …, "meta": { "provider": "openai", "model": "gpt-4o-mini", "mode": "llm", "cached": false, "latencyMs": 812 } }`. `mode` is `llm` when a model answered and `heuristic` when the built-in fallback did.
+Responses look like `{ "data": …, "meta": { "provider": "openai", "model": "gpt-4o-mini", "mode": "llm", "cached": false, "latencyMs": 812 } }`. `mode` is `llm` when a model answered and `heuristic` for rule-based fallback output. In offline copilot mode it marks a clear “live model required” notice, not a generated chat answer.
 
 ### Configure a provider (free, no card)
 
 The quickest working setup is Google Gemini's free tier:
 
 1. Sign in at **https://aistudio.google.com/apikey** with any Google account → **Create API key**. No card, no billing account.
-2. Copy `.env.example` to `.env.local`, uncomment `GEMINI_API_KEY=` and paste the key.
-3. **Restart `npm run dev`** — env files are read once, at boot.
-4. Prove it works: open the status chip in the header and press **Test the key**, or run `npm run ai:check`. The probe line must say `ok`.
+2. Copy `.env.example` to `.env.local`, uncomment `GEMINI_API_KEY=`, and paste the complete key value (no trailing comments). Gemini is selected automatically unless you have another provider key configured; in that case set `AI_PROVIDER=gemini` explicitly.
+3. **Restart the app** — env files are read once at boot. `npm run dev` works with the Next.js fallback; to run the primary Gemini service too, install Python dependencies once with `npm run py:install`, then start both with `npm run dev:all`.
+4. Prove it works: open the status chip in the header and press **Test the key**, or run `npm run ai:check`. The probe line must report `gemini` and `ok`.
+
+The Ask the assistant chat goes to the FastAPI Gemini adapter first, using `GEMINI_API_KEY` and `GEMINI_MODEL`. If FastAPI is unreachable, the browser transparently retries the matching Next.js route, which now also prefers Gemini by default. The key stays server-side; do not paste it into chat or commit it.
 
 The key stays on your machine: `.env.local` is git-ignored, never logged, and any key-shaped text in an upstream error is redacted before it reaches a log, a response or the UI.
 
-Copy `.env.example` to `.env.local` and set **one** key. The provider is auto-detected in this order, and `AI_PROVIDER` overrides the guess:
+Copy `.env.example` to `.env.local` and set **one** key. With `AI_PROVIDER` unset, Gemini is preferred if its key is configured; set `AI_PROVIDER` explicitly to force another provider. Auto-detection checks providers in this order:
 
 | Provider | Variable | Default model |
 | --- | --- | --- |
+| Google Gemini | `GEMINI_API_KEY` | `gemini-3.8-flash` |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-latest` |
-| Google Gemini | `GEMINI_API_KEY` | `gemini-3.8-flash` |
 | Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
 | OpenRouter | `OPENROUTER_API_KEY` | `openai/gpt-4o-mini` |
 | Ollama (local) | `OLLAMA_BASE_URL` | `llama3.1` |
 
-With no key the app runs **offline**: every AI surface still produces a real answer from the heuristic engine and labels it as such. Env files are read at boot, so restart `npm run dev` after editing them.
+With no key the app runs **offline**: structured AI tools use their deterministic heuristic fallbacks and label them as such. The conversational assistant clearly says a live model is needed rather than pretending a canned answer came from Gemini. Env files are read at boot, so restart `npm run dev` after editing them.
 
 ### Deliberate guard rails
 
 - **AI runs only on user action.** No page view, scroll or filter change ever spends tokens; every AI surface has a button, and the defaults are deterministic.
-- **Cost control.** Replies are cached in the database by prompt hash, keyed by provider *and* model, so re-opening a panel costs nothing and switching models cannot serve a stale answer. Each request has a timeout (`LLM_TIMEOUT_MS`, default 30s) and a per-route rate limit.
-- **Nothing unvalidated reaches the UI.** Every model reply is parsed against a zod schema; junk, truncation or a fenced code block around the JSON falls back to the heuristic rather than rendering garbage. Prompts are injected with user text wrapped in `untrusted(...)` so supplier copy cannot be read as instructions.
+- **Cost control.** Structured replies are cached in the database by prompt hash, keyed by provider *and* model. Conversational turns are deliberately not cached, so follow-ups stay fresh. Each request has a timeout (`LLM_TIMEOUT_MS`, default 30s) and a per-route rate limit.
+- **Grounded chat, validated structured data.** Structured model replies are parsed against a zod/Pydantic schema; invalid JSON falls back to deterministic heuristics. The assistant is natural-language chat, grounded in server-built, role-scoped workspace context; it does not see competitor bids for sellers. User-supplied text is wrapped in `untrusted(...)` so supplier copy cannot be read as instructions.
 - **The model never decides anything.** It annotates: it cannot award a contract, change a status or overwrite a compatibility score. Deterministic ranking stays authoritative, and a buyer can blend the model's read in explicitly (`?wSemantic=0.25`, or **Blend AI fit** in the comparison workspace) — that blended ranking is computed server-side and labelled with its provider, model and latency.
 - **Transparency in the UI.** The status chip in the header reports API and model availability; if the API is down an offline banner says so, and if no key is set the panels say "offline analysis" rather than implying a model answered.
 

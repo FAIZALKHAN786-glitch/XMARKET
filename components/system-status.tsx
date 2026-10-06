@@ -141,7 +141,7 @@ export function SystemStatus({ className }: { className?: string }) {
                 }
                 detail={
                   aiLive
-                    ? "Brief parsing, bid scoring, drafting and summaries use the model."
+                    ? "Brief parsing, bid scoring, drafting, shortlist summaries and the private workspace assistant use the model."
                     : "No API key set, so AI endpoints return deterministic analysis labelled as offline."
                 }
               />

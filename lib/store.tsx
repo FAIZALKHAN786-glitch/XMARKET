@@ -61,6 +61,8 @@ interface StoreValue {
 
   /* meta */
   hydrated: boolean;
+  /** The session check has settled, including the anonymous case. */
+  accountReady: boolean;
   /** The first server sync has settled — see the note on the state above. */
   synced: boolean;
   /** True once the API answered; false while running on the seeded fallback. */
@@ -79,6 +81,7 @@ interface StoreValue {
 
   /* actions */
   refresh: () => Promise<void>;
+  refreshAccount: () => Promise<void>;
   setRole: (role: Role) => void;
   setWeights: (weights: Weights) => void;
   toggleSaved: (requirementId: string) => void;
@@ -109,6 +112,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [buyers, setBuyers] = useState<Buyer[]>(BUYERS);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [account, setAccount] = useState<Account | null>(null);
+  const [accountReady, setAccountReady] = useState(false);
   const [prefs, setPrefs] = useState<Prefs>({
     role: "buyer",
     weights: DEFAULT_WEIGHTS,
@@ -141,21 +145,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setHydrated(true);
   }, []);
 
-  // Who is signed in. Fetched once; auth changes navigate and remount.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/auth/session")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json) => {
-        if (!cancelled && json?.ok) setAccount(json.data.account ?? null);
-      })
-      .catch(() => {
-        /* anonymous */
-      });
-    return () => {
-      cancelled = true;
-    };
+  // Resolve the current session for account-scoped UI. Auth screens call
+  // refreshAccount after password sign-in so persistent root layouts update too.
+  const refreshAccount = useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/session");
+      const json = response.ok ? await response.json() : null;
+      setAccount(json?.ok ? json.data.account ?? null : null);
+    } catch {
+      setAccount(null);
+    } finally {
+      setAccountReady(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshAccount();
+  }, [refreshAccount]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -296,6 +302,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       role: account ? (account.role === "seller" ? "provider" : "buyer") : prefs.role,
       weights: prefs.weights,
       hydrated,
+      accountReady,
       synced,
       connected,
       syncError,
@@ -311,6 +318,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pushToast,
       dismissToast,
       refresh,
+      refreshAccount,
 
       setRole: (role) => setPrefs((p) => ({ ...p, role })),
       setWeights: (weights) => setPrefs((p) => ({ ...p, weights })),
@@ -461,7 +469,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     buyers,
     events,
     prefs,
+    account,
     hydrated,
+    accountReady,
     synced,
     connected,
     syncError,
@@ -471,6 +481,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     pushToast,
     dismissToast,
     refresh,
+    refreshAccount,
     withBusy,
   ]);
 
