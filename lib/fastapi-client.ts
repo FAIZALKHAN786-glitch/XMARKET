@@ -92,11 +92,6 @@ export async function fastapiRequest<T>(
     throw new FastapiUnreachableError();
   }
 
-  // The Next.js rewrite proxy surfaces a dead upstream as 502/503/504.
-  if (response.status >= 500 && response.status <= 504) {
-    throw new FastapiUnreachableError(`The AI service answered ${response.status}`);
-  }
-
   let payload: ApiEnvelope<T> | undefined;
   try {
     payload = (await response.json()) as ApiEnvelope<T>;
@@ -104,6 +99,12 @@ export async function fastapiRequest<T>(
     throw new FastapiUnreachableError("The AI service returned a non-JSON response");
   }
 
+  // A genuine FastAPI error envelope (including a Gemini auth/network error
+  // with HTTP 502/503) means the service IS reachable. Do not send the same
+  // paid request again through Next.js or hide the original diagnosis.
+  if (!payload || typeof payload.ok !== "boolean") {
+    throw new FastapiUnreachableError("The AI service returned an invalid response");
+  }
   if (!response.ok || !payload.ok || payload.data === undefined) {
     throw new ApiClientError(
       payload?.error?.message ?? `Request failed with ${response.status}`,

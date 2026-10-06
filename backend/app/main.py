@@ -122,6 +122,7 @@ def create_app() -> FastAPI:
             "note": cfg.status_note(),
         }
         if probe:
+            rate_limit(client_key(request, "ai-probe"), 6, 60_000)
             data["probe"] = await llm.health(cfg)
         data["capabilities"] = [
             {"id": "parse-requirement", "label": "Brief → structured requirement", "endpoint": "POST /v1/ai/parse-requirement"},

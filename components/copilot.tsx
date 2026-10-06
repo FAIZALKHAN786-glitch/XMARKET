@@ -133,7 +133,9 @@ export function Copilot({ role: pageRole }: { role: WorkspaceRole }) {
       ? `${meta.provider} · ${meta.model} · ${meta.latencyMs}ms`
       : "Offline · no model answered"
     : aiStatus?.live
-      ? `${aiStatus.provider} ready`
+      ? aiStatus.probe?.ok === false
+        ? "Gemini unavailable · test connection"
+        : `${aiStatus.provider} ${aiStatus.probe?.ok ? "online" : "configured"}`
       : accountReady
         ? "Gemini not connected"
         : "Checking model";

@@ -19,6 +19,7 @@ import time
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from .config import Config
 from .envelope import ApiError
@@ -162,6 +163,8 @@ class LlmResult:
 
 
 def _thinking_config(cfg: Config) -> dict | None:
+    if re.match(r"^gemini-2\.5-flash(?:-|$)", cfg.gemini_model, re.IGNORECASE):
+        return {"thinkingBudget": 0}
     if not re.match(r"^gemini-3", cfg.gemini_model, re.IGNORECASE):
         return None
     level = cfg.gemini_thinking_level.lower()
@@ -196,7 +199,7 @@ def _gemini_body(cfg: Config, messages, options: dict) -> dict:
 def _extract_text(data: Any) -> str:
     try:
         parts = data["candidates"][0]["content"]["parts"]
-        return "".join(p.get("text", "") for p in parts).strip()
+        return "".join(p.get("text", "") for p in parts if not p.get("thought")).strip()
     except (TypeError, KeyError, IndexError):
         return ""
 
@@ -292,16 +295,21 @@ async def chat(
             text = await _call_provider(cfg, attempt_messages, options, timeout_ms)
             if not schema:
                 result = LlmResult(text, "gemini", cfg.gemini_model, False, int((time.time() - started) * 1000))
-                write_cache(cfg, key, text, "gemini")
+                if not no_cache:
+                    write_cache(cfg, key, text, "gemini")
                 return result
 
             parsed = extract_json(text)
-            model = schema.model_validate(parsed) if parsed is not None else None
+            try:
+                model = schema.model_validate(parsed) if parsed is not None else None
+            except ValidationError as exc:
+                raise ApiError("unprocessable", "Model output failed schema validation") from exc
             if model is None:
                 raise ApiError("unprocessable", "Model output failed schema validation", {"raw": text[:600]})
             value = model.model_dump(by_alias=True, exclude_none=True)
             result = LlmResult(value, "gemini", cfg.gemini_model, False, int((time.time() - started) * 1000))
-            write_cache(cfg, key, value, "gemini")
+            if not no_cache:
+                write_cache(cfg, key, value, "gemini")
             return result
         except ApiError as exc:
             last_error = exc
@@ -339,6 +347,9 @@ async def _call_provider(cfg: Config, messages, options: dict, timeout_ms: int |
         elif status == 429:
             code = "rate_limited"
             advice = " The provider's rate or quota limit was reached; the free tier resets on a rolling window."
+        elif status == 404:
+            code = "bad_request"
+            advice = " Check GEMINI_MODEL against `npm run gemini:check -- --list-models`, then restart both services."
         elif status >= 500:
             code = "upstream"
             advice = ""
@@ -351,11 +362,14 @@ async def _call_provider(cfg: Config, messages, options: dict, timeout_ms: int |
         data = response.json()
     except json.JSONDecodeError as exc:
         raise ApiError("upstream", "gemini returned non-JSON") from exc
-    return _extract_text(data)
+    text = _extract_text(data)
+    if not text:
+        raise ApiError("unprocessable", "The model returned no answer (blocked or output budget exhausted). Try rephrasing or increasing max_tokens.")
+    return text
 
 
 async def health(cfg: Config) -> dict[str, Any]:
-    """Probe the provider with a one-token prompt (like the TS health())."""
+    """Probe the provider with a short prompt and room for thinking tokens."""
     if not cfg.gemini_api_key:
         return {
             "ok": False,
@@ -373,7 +387,7 @@ async def health(cfg: Config) -> dict[str, Any]:
                 {"role": "user", "content": "ping"},
             ],
             temperature=0,
-            max_tokens=16,
+            max_tokens=2048,
             timeout_ms=20_000,
             no_cache=True,
         )

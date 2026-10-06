@@ -62,25 +62,11 @@ const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 30_000);
 export function config(): Config {
   const env = process.env;
 
-  if (env.AI_PROVIDER) {
-    const forced = env.AI_PROVIDER.toLowerCase() as ProviderName;
-    const forcedConfig = buildConfig(forced, env);
-    if (forcedConfig) return forcedConfig;
-  }
-
-  // Gemini is this project's recommended/default live model. Respect an
-  // explicit AI_PROVIDER above, otherwise prefer Gemini when its key exists.
-  for (const candidate of [
-    "gemini",
-    "openai",
-    "anthropic",
-    "groq",
-    "openrouter",
-    "ollama",
-  ] as ProviderName[]) {
-    const built = buildConfig(candidate, env);
-    if (built) return built;
-  }
+  // Both backends default to Gemini. Never silently send a request to another
+  // provider merely because an unrelated API key happens to be installed.
+  const selected = (env.AI_PROVIDER?.trim().toLowerCase() || "gemini") as ProviderName;
+  const selectedConfig = buildConfig(selected, env);
+  if (selectedConfig) return selectedConfig;
   return { provider: "offline", model: "xmarket-heuristic-v1", baseUrl: "" };
 }
 
@@ -108,15 +94,15 @@ function buildConfig(
         baseUrl: pick("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1"),
       };
     case "gemini":
-      if (!env.GEMINI_API_KEY && !env.GOOGLE_API_KEY) return undefined;
+      if (!env.GEMINI_API_KEY?.trim() && !env.GOOGLE_API_KEY?.trim()) return undefined;
       return {
         provider,
-        apiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
-        model: pick("GEMINI_MODEL", "gemini-3.8-flash"),
+        apiKey: env.GEMINI_API_KEY?.trim() || env.GOOGLE_API_KEY?.trim(),
+        model: pick("GEMINI_MODEL", "gemini-3.5-flash-lite").replace(/^models\//, ""),
         baseUrl: pick(
           "GEMINI_BASE_URL",
           "https://generativelanguage.googleapis.com/v1beta"
-        ),
+        ).replace(/\/+$/, ""),
       };
     case "groq":
       if (!env.GROQ_API_KEY) return undefined;
@@ -180,7 +166,7 @@ export interface HealthResult {
 }
 
 /**
- * Actually calls the provider with a one-token prompt.
+ * Actually calls the provider with a short prompt (with room for thinking tokens).
  *
  * `status()` only reports whether a key is *present*; that is not the same as
  * a key that *works*, and the difference is exactly what confuses someone who
@@ -207,7 +193,7 @@ export async function health(options: { noCache?: boolean } = {}): Promise<Healt
         { role: "system", content: "You are a health check. Reply with the single word: ok" },
         { role: "user", content: "ping" },
       ],
-      { temperature: 0, maxTokens: 16, timeoutMs: 20_000, noCache: options.noCache !== false }
+      { temperature: 0, maxTokens: 2048, timeoutMs: 20_000, noCache: options.noCache !== false }
     );
     return {
       ok: true,
@@ -328,7 +314,7 @@ export async function chat<T = string>(
           cached: false,
           latencyMs: Date.now() - started,
         };
-        await writeCache(key, result.value, c.provider);
+        if (!options.noCache) await writeCache(key, result.value, c.provider);
         return result;
       }
 
@@ -348,7 +334,7 @@ export async function chat<T = string>(
         cached: false,
         latencyMs: Date.now() - started,
       };
-      await writeCache(key, result.value, c.provider);
+      if (!options.noCache) await writeCache(key, result.value, c.provider);
       return result;
     } catch (error) {
       lastError = error;
@@ -419,8 +405,10 @@ async function callProvider(
         status === 401 || status === 403
           ? " The key was rejected — check it is correct, active and has access to this model."
           : status === 429
-            ? " The provider's rate or quota limit was reached; the free tier resets on a rolling window."
-            : "";
+            ? " The provider's rate or quota limit was reached; check usage and billing before retrying."
+            : status === 404 && c.provider === "gemini"
+              ? " Check GEMINI_MODEL against `npm run gemini:check -- --list-models`, then restart both services."
+              : "";
 
       throw new ApiError(kind, `${c.provider} returned ${status}: ${detail}${advice}`, {
         status,
@@ -428,7 +416,11 @@ async function callProvider(
     }
 
     const json = (await response.json()) as unknown;
-    return extractText(c.provider, json);
+    const text = extractText(c.provider, json);
+    if (!text) {
+      throw new ApiError("unprocessable", "The model returned no answer (blocked or output budget exhausted). Try rephrasing or increasing maxTokens.");
+    }
+    return text;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.name === "AbortError") {
@@ -463,9 +455,11 @@ export function redact(text: string): string {
 
 /**
  * Thinking budget for the current model, or undefined to omit the field.
- * 3.x takes `thinkingLevel`; 2.5 and earlier take nothing from us.
+ * Disable optional thinking on 2.5 Flash so short replies keep their output budget.
+ * 3.x uses thinkingLevel; do not send that field to 2.5 models.
  */
-function thinkingConfig(model: string): { thinkingLevel: string } | undefined {
+function thinkingConfig(model: string): { thinkingLevel: string } | { thinkingBudget: number } | undefined {
+  if (/^gemini-2\.5-flash(?:-|$)/i.test(model)) return { thinkingBudget: 0 };
   if (!/^gemini-3/i.test(model)) return undefined;
   const level = (process.env.GEMINI_THINKING_LEVEL ?? "low").toLowerCase();
   return { thinkingLevel: ["low", "medium", "high"].includes(level) ? level : "low" };
@@ -540,10 +534,7 @@ function body(c: Config, messages: ChatMessage[], options: ChatOptions) {
         temperature,
         maxOutputTokens: maxTokens,
         responseMimeType: options.schema ? "application/json" : "text/plain",
-        // Gemini 3.x reasons before answering, and those tokens count toward
-        // maxOutputTokens. Keep the default at supported low thinking for these
-        // short extraction/chat tasks. This field only exists on 3.x; sending it
-        // to a 2.5 model is a 400.
+        // Use model-specific thinking controls, never a 3.x field on 2.5.
         ...(thinkingConfig(c.model) ? { thinkingConfig: thinkingConfig(c.model) } : {}),
       },
     };
@@ -568,6 +559,7 @@ function extractText(provider: ProviderName, json: unknown): string {
   }
   if (provider === "gemini") {
     return (data?.candidates?.[0]?.content?.parts ?? [])
+      .filter((part: any) => !part?.thought)
       .map((part: any) => part?.text ?? "")
       .join("")
       .trim();

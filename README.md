@@ -393,12 +393,12 @@ Five AI capabilities sit alongside the deterministic engine. Structured tasks us
 
 Responses look like `{ "data": …, "meta": { "provider": "openai", "model": "gpt-4o-mini", "mode": "llm", "cached": false, "latencyMs": 812 } }`. `mode` is `llm` when a model answered and `heuristic` for rule-based fallback output. In offline copilot mode it marks a clear “live model required” notice, not a generated chat answer.
 
-### Configure a provider (free, no card)
+### Configure Gemini 3.5 Flash Lite locally
 
-The quickest working setup is Google Gemini's free tier:
+The project defaults to the requested API model ID `gemini-3.5-flash-lite` on both backends. Your Google project must have access to that exact ID.
 
-1. Sign in at **https://aistudio.google.com/apikey** with any Google account → **Create API key**. No card, no billing account.
-2. Copy `.env.example` to `.env.local`, uncomment `GEMINI_API_KEY=`, and paste the complete key value (no trailing comments). Gemini is selected automatically unless you have another provider key configured; in that case set `AI_PROVIDER=gemini` explicitly.
+1. Sign in at **https://aistudio.google.com/apikey** → **Create API key** (or use your existing key). Model availability and billing depend on your Google project.
+2. Copy `.env.example` to `.env.local`, fill in `GEMINI_API_KEY=` with the complete key value (no trailing comments). The template already sets `AI_PROVIDER=gemini` and `GEMINI_MODEL=gemini-3.5-flash-lite`.
 3. **Restart the app** — env files are read once at boot. `npm run dev` works with the Next.js fallback; to run the primary Gemini service too, install Python dependencies once with `npm run py:install`, then start both with `npm run dev:all`.
 4. Prove it works: open the status chip in the header and press **Test the key**, or run `npm run ai:check`. The probe line must report `gemini` and `ok`.
 
@@ -406,11 +406,11 @@ The Ask the assistant chat goes to the FastAPI Gemini adapter first, using `GEMI
 
 The key stays on your machine: `.env.local` is git-ignored, never logged, and any key-shaped text in an upstream error is redacted before it reaches a log, a response or the UI.
 
-Copy `.env.example` to `.env.local` and set **one** key. With `AI_PROVIDER` unset, Gemini is preferred if its key is configured; set `AI_PROVIDER` explicitly to force another provider. Auto-detection checks providers in this order:
+With `AI_PROVIDER` unset, Next.js uses Gemini, just like FastAPI. It does not auto-select other installed keys. Other Next.js adapters remain available only by explicitly setting `AI_PROVIDER`; FastAPI always uses Gemini:
 
 | Provider | Variable | Default model |
 | --- | --- | --- |
-| Google Gemini | `GEMINI_API_KEY` | `gemini-3.8-flash` |
+| Google Gemini | `GEMINI_API_KEY` | `gemini-3.5-flash-lite` |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-3-5-haiku-latest` |
 | Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` |
@@ -428,6 +428,41 @@ With no key the app runs **offline**: structured AI tools use their deterministi
 - **Transparency in the UI.** The status chip in the header reports API and model availability; if the API is down an offline banner says so, and if no key is set the panels say "offline analysis" rather than implying a model answered.
 
 ### Verifying it
+
+Run `npm run test:gemini` for isolated adapter regression checks (no API key or network required).
+The status chip says **AI configured** until **Test the key** gets a non-empty response;
+a failed test shows **AI unavailable**, not a false online indicator.
+Keep your chosen model in `GEMINI_MODEL`; neither backend silently substitutes another
+model when Google rejects it. To discover the exact model IDs available to your key:
+
+```sh
+npm run gemini:check -- --list-models
+npm run gemini:check -- --model=exact-id-from-the-list
+```
+
+The first command only lists models. The second verifies both a text reply and
+schema-style JSON with two small generation requests; it does not change your env
+file. Copy the successful ID to `GEMINI_MODEL` and restart **both** services.
+A display name such as “3.5 Flash Lite” is not validated by guessing an API ID:
+Google's models list and a real generation request are the authority.
+
+To check the app's serving backend without seeded data or a signed-in account:
+
+```sh
+npm run ai:check -- --probe-only                  # Next.js adapter
+npm run ai:check -- --probe-only --backend=fastapi # FastAPI via same-origin proxy
+```
+
+The status chip uses the same FastAPI-first routing as the AI tools and assistant.
+Only an unreachable/non-API backend triggers the Next.js fallback; an explicit
+Gemini error is preserved, not retried through another backend. Missing keys,
+failed probes, and heuristic results cause `ai:check` to exit unsuccessfully.
+HTTP 404 indicates model/access problems; 401/403 indicates credentials/access;
+429 indicates rate limits or quota. See [Gemini setup and troubleshooting](docs/gemini.md).
+
+On a deployed app, set `GEMINI_API_KEY` in the hosting provider's server-side secret
+settings and redeploy; changing this checkout does not configure a remote deployment.
+
 
 ```bash
 npm run ai:check                       # per-capability MODE / provider / latency report
