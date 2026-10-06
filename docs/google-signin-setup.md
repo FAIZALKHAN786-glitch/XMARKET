@@ -10,6 +10,74 @@ or any other you add as a test user.
 > A sandbox or container with no outbound internet gets through the consent
 > screen and then fails on that call. See "Troubleshooting" at the bottom.
 
+## Fresh Windows machine
+
+Install Node.js (LTS), Python 3 with the Python Launcher, and Git. In Windows
+PowerShell, clone the project and check that Python is available:
+
+```powershell
+git clone https://github.com/FAIZALKHAN786-glitch/XMARKET.git
+Set-Location XMARKET
+node --version
+py -3 --version
+```
+
+Then install the JavaScript and Python dependencies:
+
+```powershell
+npm.cmd install
+npm.cmd run py:install
+```
+
+`py:install` creates `backend/.venv` and installs the FastAPI requirements.
+`py:dev` also creates and installs a missing environment automatically. Configure
+Google sign-in by following Parts 1 and 2 below, then save its credentials
+(substitute your actual values):
+
+```powershell
+npm.cmd run google:setup -- "YOUR_CLIENT_ID.apps.googleusercontent.com" "GOCSPX-YOUR_CLIENT_SECRET"
+```
+
+Start the frontend and API together:
+
+```powershell
+npm.cmd run dev:all
+```
+
+Open <http://localhost:3000>. Press **Ctrl+C** once to stop both services.
+Keep port 3000 free so the redirect URI registered in Google remains the one
+the app uses. The traditional two-terminal commands are still available in
+Part 4.
+
+## PowerShell 5.x gotchas
+
+- Windows PowerShell 5.x does **not** support `&&`. Run commands on separate
+  lines rather than pasting a chained Bash command.
+- In PowerShell, `<` and `>` are redirection operators. Text such as
+  `<client-id>` in documentation is a placeholder, **not** something to type;
+  replace it with the real value. Quote the two real credentials as shown above.
+- If `npm` fails with `npm.ps1 cannot be loaded because running scripts is
+  disabled`, use `npm.cmd` (as in the commands above). Alternatively, you can
+  allow locally installed scripts for your account with
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+- If port 3000 is occupied, Next.js may silently start on 3001 instead. Google
+  has only `http://localhost:3000/fastapi/v1/oauth2/callback/google` registered
+  by this guide, so stop the other process using 3000 before starting XMarket;
+  otherwise Google sign-in can fail with `redirect_uri_mismatch`.
+- Windows' `python` command can be a Microsoft Store installer stub. The wrapper
+  tries `py -3` first; check Python with `py -3 --version` and install/enable
+  the Python Launcher if no working interpreter is found.
+- Some Windows installations do not have `curl.exe`. Use PowerShell's
+  `Invoke-WebRequest` instead:
+
+  ```powershell
+  $response = Invoke-WebRequest -Uri "http://localhost:3000/fastapi/health"
+  ($response.Content | ConvertFrom-Json).data.google
+  ```
+
+- Windows Firewall may ask whether to allow Python. For local development,
+  allow it on **Private networks** (not Public networks) so the API can run.
+
 ---
 
 ## Shortcut: skip the menus
@@ -160,7 +228,13 @@ GOOGLE_CLIENT_SECRET=GOCSPX-…
 
 ## Part 4 — restart and verify
 
-Both processes read the file at startup, so restart both:
+Both processes read the file at startup, so restart them together (recommended):
+
+```bash
+npm run dev:all    # Next.js on :3000 + FastAPI OAuth service on :8000
+```
+
+Or, if you prefer separate terminals:
 
 ```bash
 npm run dev        # Next.js on :3000
