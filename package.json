@@ -7,6 +7,7 @@
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
+    "dev:all": "node scripts/dev-all.mjs",
     "lint": "next lint",
     "rebuild": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next build",
     "ai:check": "node scripts/ai-check.mjs",
@@ -15,8 +16,8 @@
     "data:import": "node scripts/import-tenders.mjs",
     "tags:check": "node --experimental-strip-types scripts/tag-check.mjs",
     "db:dev": "node scripts/dev-postgres.mjs",
-    "py:install": "python3 -m venv backend/.venv && backend/.venv/bin/pip install -q --upgrade pip && backend/.venv/bin/pip install -q -r backend/requirements.txt",
-    "py:dev": "backend/.venv/bin/uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000"
+    "py:install": "node scripts/py.mjs install",
+    "py:dev": "node scripts/py.mjs dev"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
