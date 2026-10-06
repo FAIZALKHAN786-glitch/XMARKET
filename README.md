@@ -311,6 +311,11 @@ before (`xmarket_session`); the JWT is additive. Sign-out clears both cookies.
 
 ### Google sign-in (optional)
 
+Setting up the Google credentials from scratch — creating the project, the
+consent screen and the OAuth client — is a click-by-click walkthrough in
+**[docs/google-signin-setup.md](docs/google-signin-setup.md)**. The summary,
+once you have a client ID and secret:
+
 1. `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `.env.local` (OAuth client
    type **Web application**).
 2. Ask the service which callback URI to register, and add it to the client's
