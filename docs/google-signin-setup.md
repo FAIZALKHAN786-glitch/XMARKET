@@ -12,52 +12,110 @@ or any other you add as a test user.
 
 ---
 
+## Shortcut: skip the menus
+
+Google reorganised this area into **Google Auth Platform**, so the menu names
+in older tutorials ("APIs & Services → OAuth consent screen") no longer match
+what you see. These four links go straight to each page — open them in order:
+
+| Step | Direct link |
+| --- | --- |
+| 1. Create the project | **https://console.cloud.google.com/projectcreate** |
+| 2. Consent screen (app name, support email) | **https://console.cloud.google.com/auth/branding** |
+| 3. User type **External** + test users | **https://console.cloud.google.com/auth/audience** |
+| 4. Create the OAuth client + redirect URI | **https://console.cloud.google.com/auth/clients** |
+
+If a link lands on "no project selected", append your project id:
+`https://console.cloud.google.com/auth/clients?project=YOUR-PROJECT-ID`.
+
+The click-by-click version of the same four steps follows.
+
+---
+
+## Where the project dropdown is (if you want it)
+
+It sits in the **top bar, immediately right of the "Google Cloud" logo**, and
+shows the current project's name (`My First Project`, `Select a project`, …)
+with a small ▾ next to it.
+
+If you genuinely cannot see it, one of these is usually why:
+
+- **The window is too narrow.** The selector collapses to just the logo.
+  Widen the browser, or look behind the ☰ menu at the far left.
+- **You are not in Cloud Console.** The address must start with
+  `console.cloud.google.com`. Pages like `console.firebase.google.com`, the
+  Google Admin console, or a `developers.google.com` docs page have a
+  different (or no) top bar.
+- **It is your first visit.** Cloud Console shows a welcome page and a terms
+  prompt first. Accept it and you land in a project.
+- **You are on a Google Auth Platform page.** Same bar, same place — it just
+  looks different from the old screenshots.
+
+You do not strictly need it: creating a project selects it automatically, and
+the direct links above carry the project with you.
+
+---
+
 ## Part 1 — a project and a consent screen
 
-The consent screen is the "XMarket wants to access your name and email"
-page. Google requires it to exist before it will issue a client ID.
+The consent screen is the "XMarket wants to access your name and email" page.
+Google requires it to exist before it will issue a client ID.
 
-1. Open **https://console.cloud.google.com/** and sign in.
-2. In the top bar, open the project dropdown → **New project**.
-   Name it anything (`xmarket`) → **Create**. Select it once it exists.
-3. Go to **APIs & Services → OAuth consent screen**
-   (Google may bounce you to the newer **Google Auth Platform → Overview**
-   page — that is the same thing; press **Get started**).
-4. **User type:** choose **External** → **Create**.
-   (*Internal* is only available to Google Workspace organisations; a personal
-   Gmail account must use External.)
-5. **App information** — only two fields matter:
-   - *App name*: `XMarket`
-   - *User support email*: your email address
-   - (App logo, home page, privacy policy: optional, leave blank.)
-   Save and continue.
-6. **Scopes** — press **Add or remove scopes** and tick:
-   - `.../auth/userinfo.email`
-   - `.../auth/userinfo.profile`
-   - `openid`
+### 1a. Create a project
 
-   These are Google's *non-sensitive* scopes, which is why this app never
-   needs Google's app-verification process. Save and continue.
-7. **Test users** — press **Add users** and add **your own Gmail address**
-   (and anyone else who should be able to sign in). While the app's publishing
-   status is *Testing*, only listed users can sign in.
+Open **https://console.cloud.google.com/projectcreate**:
+- **Project name:** `xmarket` (the id is generated for you; note it down)
+- **Location:** leave as *No organisation*
+- **Create**, then wait for the notification that it exists (10–20 seconds).
 
-   You can leave it in Testing forever for personal use — publishing is only
-   required for sensitive scopes or large audiences.
+### 1b. Branding — the consent screen
+
+Open **https://console.cloud.google.com/auth/branding**. If it says
+*"Google Auth platform not configured yet"*, press **Get started** and fill in:
+- **App name:** `XMarket`
+- **User support email:** your email address
+- Everything else (logo, home page, privacy policy) is optional — leave blank.
+
+Save and continue.
+
+### 1c. Scopes
+
+Only three, all of them Google's *non-sensitive* scopes — which is exactly why
+this app never needs Google's app-verification process:
+
+- `openid`
+- `.../auth/userinfo.email`
+- `.../auth/userinfo.profile`
+
+If the wizard offers a scopes step, add those. If it does not, skip it — the
+app requests them at sign-in time and non-sensitive scopes need no pre-approval.
+
+### 1d. Audience — user type and test users
+
+Open **https://console.cloud.google.com/auth/audience**:
+- **User type: External.**
+  (*Internal* is only offered to Google Workspace organisations; a personal
+  Gmail account must use External.)
+- **Test users → Add users** → add **your own Gmail address** (and anyone else
+  who should be able to sign in).
+
+While the app's publishing status is **Testing**, only listed users can sign
+in. You can leave it in Testing forever for personal use — publishing is only
+required for sensitive scopes or large audiences.
 
 ---
 
 ## Part 2 — the OAuth client (the Client ID and Secret)
 
-1. **APIs & Services → Credentials** → **+ Create credentials** →
-   **OAuth client ID**.
-2. **Application type: Web application.**
-   Not *Desktop app* and not *iOS/Android* — those issue credentials that
-   cannot do a server-side code exchange.
-3. **Name:** `XMarket web` (anything you will recognise later).
-4. **Authorised JavaScript origins** — optional, leave empty. This app's
+Open **https://console.cloud.google.com/auth/clients** → **Create client**:
+
+1. **Application type: Web application.**
+   Not *Desktop app*, not *iOS/Android* — those issue credentials that cannot
+   do a server-side code exchange.
+2. **Name:** `XMarket web` (anything you will recognise later).
+3. **Authorised JavaScript origins** — optional, leave empty. This app's
    sign-in is a full-page redirect, not a browser-side popup.
-5. **Authorised redirect URIs** → **+ Add URI**, and paste:
+4. **Authorised redirect URIs → + Add URI**, and paste:
 
    ```
    http://localhost:3000/fastapi/v1/oauth2/callback/google
@@ -70,7 +128,7 @@ page. Google requires it to exist before it will issue a client ID.
    Add more URIs later if you deploy: run
    `curl -s localhost:3000/fastapi/health | jq .data.google.redirectUri`
    on the deployed host to get the right one, and add it here too.
-6. **Create.**
+5. **Create.**
 
 Google now shows your **Client ID** (`….apps.googleusercontent.com`) and
 **Client secret** (`GOCSPX-…`). Copy both, or press **Download JSON** — the
@@ -149,7 +207,8 @@ and why instead of failing silently.
 | --- | --- | --- |
 | Google: **Error 400: redirect_uri_mismatch** | the URI your app sent is not in the client's list | copy `google.redirectUri` from `/fastapi/health` into **Authorised redirect URIs** — character for character |
 | Google: **"This app isn't verified"** | publishing status is *Testing* | click **Advanced → Continue**; or add yourself as a test user |
-| Google: **Error 403: access_denied** | your email is not a test user, or an admin policy blocks the app | add the address under **OAuth consent screen → Test users** |
+| Google: **Error 403: access_denied** | your email is not a test user, or an admin policy blocks the app | add the address under **Audience → Test users** |
+| No **Clients** / **Branding** menu at all | the project has no OAuth-compatible API enabled, or your account is only a Viewer | you need the Owner or Editor role on the project |
 | App: *"This server cannot reach Google"* | no outbound internet from the machine running `npm run py:dev` | run it somewhere with egress to `oauth2.googleapis.com`; `/fastapi/health` carries the connection error |
 | App: *"Google sign-in is not configured"* | env vars missing, or the FastAPI service started before you saved them | fill in `.env.local` and restart **both** processes |
 | App: *"The OAuth service … is not responding"* | `npm run py:dev` is not running | start it (`npm run py:install` first time only) |
