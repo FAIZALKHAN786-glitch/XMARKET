@@ -11,6 +11,7 @@ The browser reaches this service through the Next.js rewrite
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from logging import getLogger
 from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
@@ -29,6 +30,7 @@ from .security import (
     check_state,
     google_authorize_url,
     google_exchange_code,
+    google_reachable,
     issue_token,
     jwt_cookie_params,
     redirect_uri_for,
@@ -36,6 +38,8 @@ from .security import (
     sign_state,
 )
 from . import schemas
+
+LOGGER = getLogger("xmarket.oauth2")
 
 
 @asynccontextmanager
@@ -72,7 +76,20 @@ def create_app() -> FastAPI:
 
     # ================================================================ /health
     @app.get("/health")
-    async def health() -> Any:
+    async def health(request: Request) -> Any:
+        # The redirect URI is host-derived, so it changes with the deployment
+        # (localhost vs. a preview domain). Publishing it here means the one
+        # thing you must paste into the Google console is a curl away instead
+        # of a guess — a wrong URI is the most common reason the consent
+        # screen refuses to start.
+        google: dict[str, Any] = {
+            "configured": cfg.google_configured,
+            "redirectUri": redirect_uri_for(request, cfg),
+            "reachable": None,
+            "detail": "",
+        }
+        if cfg.google_configured:
+            google.update(await google_reachable())
         return ok(
             {
                 "ok": True,
@@ -85,6 +102,7 @@ def create_app() -> FastAPI:
                     "mode": cfg.model_mode(),
                 },
                 "googleSignIn": cfg.google_configured,
+                "google": google,
             }
         )
 
@@ -232,7 +250,9 @@ def create_app() -> FastAPI:
             payload = check_state(cfg, state)
             if not code or not payload:
                 raise ApiError("unauthorized", "Invalid or expired sign-in state.")
-            redirect_uri = redirect_uri.strip() or _stored_redirect.get("uri", "")
+            # The URI travelled inside the signed state (see /authorize/google),
+            # so this grant works across workers and concurrent sign-ins.
+            redirect_uri = redirect_uri.strip() or payload.get("uri", "")
             profile = await google_exchange_code(cfg, code, redirect_uri)
             account = db.find_by_email(profile["email"])
             if not account:
@@ -270,34 +290,61 @@ def create_app() -> FastAPI:
         domain: str = Query(default=""),
     ) -> Any:
         """Step 1 of Google sign-in: send the browser to the consent screen."""
-        if not cfg.google_configured:
-            raise ApiError(
-                "ai_unavailable",
-                "Google sign-in is not configured. Set GOOGLE_CLIENT_ID and "
-                "GOOGLE_CLIENT_SECRET in .env.local and restart the FastAPI service.",
-            )
         if role not in ("buyer", "seller"):
             role = "buyer"
         safe_next = next if next.startswith("/") and not next.startswith("//") else "/"
-        state = sign_state(cfg, {"role": role, "next": safe_next, "domain": domain})
-        # Remember the redirect URI for the callback (it is request-derived).
-        _stored_redirect["uri"] = redirect_uri_for(request, cfg)
-        return RedirectResponse(await google_authorize_url(cfg, _stored_redirect["uri"], state))
+        if not cfg.google_configured:
+            # This is a browser navigation, not an API call: hand the user back
+            # to the sign-in page with a readable reason rather than dumping a
+            # JSON envelope into the tab.
+            return RedirectResponse(
+                f"/signin/{role}?oauth_error=not_configured", status_code=302
+            )
+        redirect_uri = redirect_uri_for(request, cfg)
+        # The redirect URI rides inside the signed state instead of process
+        # memory. Two people signing in at once — or a second uvicorn worker —
+        # used to overwrite each other's URI, and the loser's code exchange
+        # then failed with redirect_uri_mismatch.
+        state = sign_state(
+            cfg,
+            {"role": role, "next": safe_next, "domain": domain, "uri": redirect_uri},
+        )
+        return RedirectResponse(await google_authorize_url(cfg, redirect_uri, state))
 
     @oauth_router.get("/callback/google")
-    async def oauth_callback(request: Request, code: str = "", state: str = "") -> Any:
-        """Step 2: Google returns the browser here with a code + state."""
-        payload = check_state(cfg, state)
+    async def oauth_callback(
+        request: Request, code: str = "", state: str = "", error: str = ""
+    ) -> Any:
+        """Step 2: Google returns the browser here with a code + state.
+
+        Every failure lands the user back on the sign-in page they started
+        from with `?oauth_error=<code>`, which the page renders as plain
+        English. Nothing here throws: a 500 page mid-sign-in is how a
+        fixable misconfiguration ends up looking like a broken app.
+        """
+        payload = check_state(cfg, state) or {}
+        role = payload.get("role") if payload.get("role") in ("buyer", "seller") else "buyer"
+        back = f"/signin/{role}"
+
         if not payload:
-            raise ApiError("unauthorized", "Invalid or expired sign-in state.")
-        redirect_uri = _stored_redirect.get("uri") or redirect_uri_for(request, cfg)
+            return RedirectResponse("/signin?oauth_error=invalid_state", status_code=302)
+        if error:
+            # Google declined before we were involved — an unregistered
+            # redirect URI, or the user backing out of the consent screen.
+            return RedirectResponse(
+                f"{back}?oauth_error={_google_error_code(error)}", status_code=302
+            )
+        if not code:
+            return RedirectResponse(f"{back}?oauth_error=no_code", status_code=302)
+
+        redirect_uri = payload.get("uri") or redirect_uri_for(request, cfg)
         try:
             profile = await google_exchange_code(cfg, code, redirect_uri)
             db: AccountsDB = request.app.state.db
             account = db.find_by_email(profile["email"])
             if not account:
                 account = db.create_account(
-                    role=payload.get("role", "buyer"),
+                    role=role,
                     email=profile["email"],
                     password_hash=hash_password(_unusable_password()),
                     display_name=profile["name"],
@@ -306,11 +353,17 @@ def create_app() -> FastAPI:
                 )
             token, ttl = issue_token(cfg, account)
         except ApiError as exc:
-            # Land the user somewhere useful instead of a raw error page.
-            return RedirectResponse(f'/signin?oauth_error={exc.code}', status_code=302)
+            return RedirectResponse(f"{back}?oauth_error={exc.code}", status_code=302)
+        except Exception:  # noqa: BLE001 — network/DNS/TLS faults are not ApiError
+            # Almost always "this machine cannot reach Google" (no outbound
+            # internet, proxy, or DNS). The health endpoint carries the detail,
+            # and the traceback still goes to the service log — the user gets a
+            # sentence, not a stack trace, but the log keeps both.
+            LOGGER.exception("Google sign-in callback failed")
+            return RedirectResponse(f"{back}?oauth_error=unreachable", status_code=302)
 
         secure = _is_secure(request)
-        resp = RedirectResponse(payload.get("next", "/"), status_code=302)
+        resp = RedirectResponse(payload.get("next") or "/", status_code=302)
         resp.set_cookie(COOKIE, token, **jwt_cookie_params(cfg, secure))
         return resp
 
@@ -381,6 +434,24 @@ def _unusable_password() -> str:
     return secrets.token_urlsafe(32)
 
 
+def _google_error_code(error: str) -> str:
+    """Google's own `error` query value -> one of our oauth_error codes.
+
+    `redirect_uri_mismatch` is called out because it is by far the most common
+    failure and the fix (register the URI /health reports) is not obvious from
+    Google's wording.
+    """
+    known = {
+        "access_denied": "cancelled",
+        "redirect_uri_mismatch": "redirect_uri_mismatch",
+        "invalid_client": "invalid_client",
+        "invalid_scope": "invalid_scope",
+        "admin_policy_enforced": "admin_policy_enforced",
+        "org_internal": "org_internal",
+    }
+    return known.get(error.strip().lower(), "google_denied")
+
+
 def _token_payload(token: str, ttl: int, account: dict) -> dict:
     return {
         "access_token": token,
@@ -413,10 +484,6 @@ def _is_secure(request: Request) -> bool:
     if proto:
         return proto.split(",")[0].strip() == "https"
     return request.url.scheme == "https"
-
-
-# Redirect URIs derived from requests, kept per-process (single instance).
-_stored_redirect: dict[str, str] = {"uri": ""}
 
 
 app = create_app()

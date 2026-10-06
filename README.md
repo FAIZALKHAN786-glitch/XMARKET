@@ -312,15 +312,45 @@ before (`xmarket_session`); the JWT is additive. Sign-out clears both cookies.
 ### Google sign-in (optional)
 
 1. `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `.env.local` (OAuth client
-   type **Web application**), adding the callback URI the service reports to
-   the authorized redirect URIs.
-2. Restart `npm run py:dev`.
-3. The sign-in pages show **Continue with Google**; the round trip is
+   type **Web application**).
+2. Ask the service which callback URI to register, and add it to the client's
+   authorized redirect URIs — it is derived from the host you are browsing, so
+   it differs between `localhost`, a preview domain and production:
+
+   ```bash
+   curl -s localhost:3000/fastapi/health | jq .data.google
+   # { "configured": true,
+   #   "redirectUri": "https://your-host/fastapi/v1/oauth2/callback/google",
+   #   "reachable": true }
+   ```
+3. Restart `npm run py:dev`.
+4. The sign-in pages show **Continue with Google**; the round trip is
    `/fastapi/v1/oauth2/authorize/google → Google → /fastapi/v1/oauth2/callback/google`,
    which sets `xmarket_jwt` and returns you to the app signed in.
 
-Without credentials the button reports that Google sign-in is not configured,
-and email/password sign-in is unaffected.
+Email/password sign-in is unaffected either way.
+
+#### When it does not work
+
+The button refuses to offer a sign-in it knows cannot complete, and says why
+underneath it. Three things break Google sign-in, all reported by
+`GET /fastapi/health`:
+
+| Symptom under the button | Cause | Fix |
+| --- | --- | --- |
+| "The OAuth service … is not responding" | `npm run py:dev` is not running, so `/fastapi/*` has nothing behind it | start it (`npm run py:install` once, then `npm run py:dev`) |
+| "Google sign-in is not configured" | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` missing or empty | add them to `.env.local` and restart **both** servers |
+| "This server cannot reach Google" | no outbound internet / TLS interception on the machine hosting the service | open egress to `oauth2.googleapis.com`; the health payload carries the connection error |
+
+A failure *after* the consent screen returns you to the sign-in page with
+`?oauth_error=<code>`, rendered as plain English — `redirect_uri_mismatch`
+(register the URI from `/fastapi/health`), `invalid_client` (wrong credentials
+or not a **Web application** client), `cancelled` (you backed out), or
+`unreachable` (the service could not call Google).
+
+Note that the consent screen runs in your browser but the code exchange is
+server-to-server: a sandbox or container with no egress passes the Google
+screen and then fails on the exchange, which is the `unreachable` case above.
 
 ### Run / test it
 

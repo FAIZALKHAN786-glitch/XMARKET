@@ -221,6 +221,56 @@ async def google_exchange_code(
     }
 
 
+# ------------------------------------------------- Google reachability probe
+
+# Cached so /health stays cheap: the sign-in page asks once per mount, and a
+# blocked network would otherwise add the full connect timeout to every call.
+_REACH_TTL_SECONDS = 300.0
+_reach_cache: dict[str, Any] = {"at": 0.0, "reachable": None, "detail": ""}
+
+
+async def google_reachable(force: bool = False) -> dict[str, Any]:
+    """Can this process actually open a connection to Google?
+
+    The consent screen happens in the user's browser, but step 2 — trading the
+    code for a profile — is a server-to-server call to
+    `oauth2.googleapis.com`. A dev box or container with no outbound internet
+    (or a TLS-terminating proxy) sails through the consent screen and then
+    dies on that call, which looks like a broken button rather than a blocked
+    network. Probing it makes the difference visible.
+
+    Any HTTP answer below 500 counts as reachable: Google replies 4xx to a
+    probe with no parameters, and a 4xx proves the TLS handshake and routing
+    work, which is the thing being tested.
+    """
+    now = time.time()
+    if (
+        not force
+        and _reach_cache["reachable"] is not None
+        and now - _reach_cache["at"] < _REACH_TTL_SECONDS
+    ):
+        return {
+            "reachable": _reach_cache["reachable"],
+            "detail": _reach_cache["detail"],
+            "checkedAt": int(_reach_cache["at"]),
+        }
+
+    detail = ""
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            res = await client.get(GOOGLE_TOKEN_URL)
+        reachable = res.status_code < 500
+        detail = f"Google answered HTTP {res.status_code}"
+    except Exception as exc:  # noqa: BLE001 — the message IS the diagnosis
+        reachable = False
+        detail = f"{type(exc).__name__}: {exc}"[:200]
+
+    _reach_cache["at"] = now
+    _reach_cache["reachable"] = reachable
+    _reach_cache["detail"] = detail
+    return {"reachable": reachable, "detail": detail, "checkedAt": int(now)}
+
+
 def redirect_uri_for(request: Request, cfg: Config) -> str:
     """Absolute URL of this service's Google callback, as the browser sees it.
 

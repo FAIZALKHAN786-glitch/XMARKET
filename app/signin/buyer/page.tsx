@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button, Card } from "@/components/ui/primitives";
-import { GoogleSignInButton } from "@/components/google-signin-button";
+import {
+  GoogleSignInButton,
+  googleSignInError,
+} from "@/components/google-signin-button";
 import { upgradeSession } from "@/lib/fastapi-client";
 
 export default function BuyerSignInPage() {
@@ -16,12 +19,22 @@ export default function BuyerSignInPage() {
   const [displayName, setDisplayName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [oauthError, setOauthError] = React.useState<string | null>(null);
+
+  // A failed Google round trip returns here as ?oauth_error=<code>. Read it
+  // off the URL instead of useSearchParams() so the page renders without a
+  // Suspense boundary.
+  React.useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("oauth_error");
+    if (code) setOauthError(googleSignInError(code));
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setError(null);
+    setOauthError(null);
 
     try {
       const endpoint = mode === "signin" ? "/api/auth/login" : "/api/auth/register";
@@ -114,9 +127,12 @@ export default function BuyerSignInPage() {
               />
             </div>
 
-            {error && (
-              <p className="mt-4 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/85">
-                {error}
+            {(error ?? oauthError) && (
+              <p
+                role="alert"
+                className="mt-4 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/85"
+              >
+                {error ?? oauthError}
               </p>
             )}
 
@@ -140,6 +156,7 @@ export default function BuyerSignInPage() {
             onClick={() => {
               setMode(mode === "signin" ? "create" : "signin");
               setError(null);
+              setOauthError(null);
             }}
             className="mt-4 w-full text-center text-sm text-white/60 transition-colors hover:text-white"
           >

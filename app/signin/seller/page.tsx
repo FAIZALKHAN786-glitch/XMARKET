@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button, Card } from "@/components/ui/primitives";
-import { GoogleSignInButton } from "@/components/google-signin-button";
+import {
+  GoogleSignInButton,
+  googleSignInError,
+} from "@/components/google-signin-button";
 import { upgradeSession } from "@/lib/fastapi-client";
 import { CATEGORIES } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
@@ -20,13 +23,23 @@ export default function SellerSignInPage() {
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [oauthError, setOauthError] = React.useState<string | null>(null);
   const [issued, setIssued] = React.useState<string | null>(null);
+
+  // A failed Google round trip returns here as ?oauth_error=<code>. Read it
+  // off the URL instead of useSearchParams() so the page renders without a
+  // Suspense boundary.
+  React.useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("oauth_error");
+    if (code) setOauthError(googleSignInError(code));
+  }, []);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setError(null);
+    setOauthError(null);
 
     try {
       const registering = mode === "create";
@@ -116,7 +129,7 @@ export default function SellerSignInPage() {
               <label className="label" htmlFor="seller-password">Password</label>
               <input id="seller-password" type="password" required minLength={registering ? 8 : undefined} autoComplete={registering ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={registering ? "At least 8 characters" : "Your password"} className="field h-11" />
             </div>
-            {error && <p role="alert" className="mt-4 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/85">{error}</p>}
+            {(error ?? oauthError) && <p role="alert" className="mt-4 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white/85">{error ?? oauthError}</p>}
             <Button type="submit" size="lg" disabled={busy} className="mt-6 w-full">
               {busy ? "Please wait…" : registering ? "Create seller account" : "Sign in"}
             </Button>
@@ -132,7 +145,7 @@ export default function SellerSignInPage() {
             <GoogleSignInButton role="seller" next="/seller" />
           </div>
 
-          <button type="button" disabled={busy} onClick={() => { setMode(registering ? "signin" : "create"); setError(null); }} className="mt-4 w-full text-center text-sm text-white/60 transition-colors hover:text-white disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={() => { setMode(registering ? "signin" : "create"); setError(null); setOauthError(null); }} className="mt-4 w-full text-center text-sm text-white/60 transition-colors hover:text-white disabled:opacity-50">
             {registering ? "Already have an account? Sign in" : "New seller? Create an account"}
           </button>
         </Card>
