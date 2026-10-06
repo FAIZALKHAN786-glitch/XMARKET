@@ -10,9 +10,11 @@ import {
   googleSignInError,
 } from "@/components/google-signin-button";
 import { upgradeSession } from "@/lib/fastapi-client";
+import { useStore } from "@/lib/store";
 
 export default function BuyerSignInPage() {
   const router = useRouter();
+  const { refreshAccount } = useStore();
   const [mode, setMode] = React.useState<"signin" | "create">("signin");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -51,8 +53,9 @@ export default function BuyerSignInPage() {
       if (!response.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? "Unable to sign in. Please try again.");
       }
-      // Exchange the fresh session cookie for the FastAPI bearer token so AI
-      // calls are authenticated immediately (fire-and-forget).
+      // Refresh the persistent root store before navigating, then upgrade the
+      // fresh cookie so FastAPI-backed AI calls are authenticated immediately.
+      await refreshAccount();
       void upgradeSession();
       router.push("/buyer");
       router.refresh();

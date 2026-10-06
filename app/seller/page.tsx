@@ -45,7 +45,7 @@ export default function SellerPage() {
       )}
 
       <div className="mt-8 max-w-2xl">
-        <Copilot />
+        <Copilot role="seller" />
       </div>
 
       {/* ------------------------------------------------------- notifications */}

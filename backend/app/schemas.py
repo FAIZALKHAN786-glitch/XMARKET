@@ -7,7 +7,9 @@ able to the frontend.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 CATEGORY_IDS = (
@@ -61,13 +63,21 @@ class SummarizeInput(CamelModel):
 
 
 class CopilotHistoryItem(CamelModel):
-    role: str  # "user" | "assistant"
+    role: Literal["user", "assistant"]
     content: str = Field(max_length=8000)
 
 
 class CopilotInput(CamelModel):
     message: str = Field(min_length=1, max_length=4000)
     history: list[CopilotHistoryItem] = Field(default_factory=list, max_length=12)
+
+    @field_validator("message")
+    @classmethod
+    def trim_message(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Message must not be blank")
+        return value
 
 
 # ------------------------------------------------------------ LLM outputs

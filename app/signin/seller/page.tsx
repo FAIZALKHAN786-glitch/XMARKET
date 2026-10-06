@@ -12,9 +12,11 @@ import {
 import { upgradeSession } from "@/lib/fastapi-client";
 import { CATEGORIES } from "@/lib/data";
 import type { CategoryId } from "@/lib/types";
+import { useStore } from "@/lib/store";
 
 export default function SellerSignInPage() {
   const router = useRouter();
+  const { refreshAccount } = useStore();
   const [mode, setMode] = React.useState<"signin" | "create">("signin");
   const [merchantName, setMerchantName] = React.useState("");
   const [shopName, setShopName] = React.useState("");
@@ -56,8 +58,9 @@ export default function SellerSignInPage() {
       if (!response.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? "Unable to sign in. Please try again.");
       }
-      // Exchange the fresh session cookie for the FastAPI bearer token so AI
-      // calls are authenticated immediately (fire-and-forget).
+      // Refresh the persistent root store before navigating, then upgrade the
+      // fresh cookie so FastAPI-backed AI calls are authenticated immediately.
+      await refreshAccount();
       void upgradeSession();
 
       if (registering && json.data?.merchantId) {

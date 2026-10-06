@@ -128,6 +128,7 @@ def create_app() -> FastAPI:
             {"id": "score-bid", "label": "Semantic fit for a proposal", "endpoint": "POST /v1/ai/score-bid"},
             {"id": "draft-bid", "label": "Proposal drafting for providers", "endpoint": "POST /v1/ai/draft-bid"},
             {"id": "summarize", "label": "Shortlist narrative for buyers", "endpoint": "POST /v1/ai/summarize"},
+            {"id": "copilot", "label": "Role-aware marketplace assistant", "endpoint": "POST /v1/ai/copilot"},
         ]
         # Recent AI activity from the shared audit log (read via the app).
         try:
@@ -205,7 +206,7 @@ def create_app() -> FastAPI:
 
     @ai_router.post("/copilot")
     async def ai_copilot(request: Request, input: schemas.CopilotInput, account: dict = Depends(require_account)) -> Any:
-        rate_limit("ai:copilot", 30, 60_000)
+        rate_limit(client_key(request, f"ai:copilot:{account['id']}"), 30, 60_000)
         reply, meta = await ai.copilot(cfg, input.message, [h.model_dump() for h in input.history], account)
         return ok({"reply": reply, "meta": meta})
 

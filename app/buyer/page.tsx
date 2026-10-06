@@ -55,7 +55,7 @@ export default function BuyerPage() {
       </div>
 
       <div className="mt-6 max-w-2xl">
-        <Copilot />
+        <Copilot role="buyer" />
       </div>
 
       {/* ------------------------------------------------------- responses */}
