@@ -138,16 +138,23 @@ values are in it as `client_id` and `client_secret`.
 
 ## Part 3 — into the app
 
-Open `.env.local` in the project root (I left the lines there, commented out)
-and fill them in:
+From the project root, in one command:
+
+```bash
+npm run google:setup -- <client-id> <client-secret>
+```
+
+It writes both values into `.env.local` — gitignored, so your secret never
+enters the repository — and replaces them rather than appending if you run it
+again. The point of routing it through a script is that the secret does not
+have to pass through a chat window, an issue, or a commit to get there.
+
+Prefer to do it by hand? Open `.env.local` and set:
 
 ```bash
 GOOGLE_CLIENT_ID=123456789-abc….apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-…
 ```
-
-`.env.local` is gitignored, so your secret never enters the repository. Do not
-paste these values into a chat, issue, or commit.
 
 ---
 

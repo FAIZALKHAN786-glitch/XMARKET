@@ -10,6 +10,7 @@
     "lint": "next lint",
     "rebuild": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next build",
     "ai:check": "node scripts/ai-check.mjs",
+    "google:setup": "node scripts/set-google-credentials.mjs",
     "api:smoke": "bash scripts/api-smoke.sh",
     "data:import": "node scripts/import-tenders.mjs",
     "tags:check": "node --experimental-strip-types scripts/tag-check.mjs",
