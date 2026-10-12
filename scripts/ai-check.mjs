@@ -24,10 +24,13 @@ const RED = "\x1b[31m";
 let failures = 0;
 let probeFailed = false;
 const results = [];
+const FASTAPI = process.argv.includes("--backend=fastapi");
+const PROBE_ONLY = process.argv.includes("--probe-only");
 const JSON_OUT = process.argv.includes("--json");
 
 async function call(path, init) {
-  const response = await fetch(`${BASE}${path}`, {
+  const endpoint = FASTAPI ? path.replace(/^\/api\/ai\//, "/fastapi/v1/ai/") : path;
+  const response = await fetch(`${BASE}${endpoint}`, {
     ...init,
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
   });
@@ -49,6 +52,7 @@ function report(name, data, summarise) {
     note: data.meta?.note ?? null,
   });
   const mode = data.meta?.mode ?? "unknown";
+  if (mode !== "llm") failures += 1;
   const tag =
     mode === "llm"
       ? `${GREEN}MODEL${OFF}`
@@ -86,6 +90,12 @@ async function main() {
       `  note     : ${DIM}${status.note}${OFF}\n`
   );
 
+  if (!status.live) {
+    failures += 1;
+    probeFailed = true;
+    console.log("  No live provider configured. Set GEMINI_API_KEY and restart the serving backend.");
+  }
+
   // Probe first: "a key is configured" is not "the key works".
   if (status.live) {
     process.stdout.write(`  probing ${status.provider}… `);
@@ -119,8 +129,14 @@ async function main() {
     } catch (error) {
       console.log(`${RED}FAILED${OFF}\n  ${error.message}\n`);
       failures += 1;
+      probeFailed = true;
       results.push({ capability: "provider-probe", mode: "failed", ok: false });
     }
+  }
+
+  if (PROBE_ONLY || probeFailed) {
+    if (JSON_OUT) console.log(JSON.stringify({ provider: status.provider, model: status.model, failures, results }, null, 2));
+    process.exit(failures > 0 ? 1 : 0);
   }
 
   // Pick a requirement that actually has offers for the scoring and summary

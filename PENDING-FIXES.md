@@ -1,3 +1,5 @@
+> Historical repair notes. For current Gemini configuration, use `docs/gemini.md`. Both backends now default to `gemini-3.5-flash-lite`; the snippets and model-retirement claims below are not current setup instructions.
+
 # Pending fixes — exact code to apply
 
 > **STATUS: APPLIED AND VERIFIED ON THE USER'S MACHINE (2026-10-05).**
@@ -53,7 +55,7 @@ so the gap was specifically recurring/period rates.
 Replace with:
 
 ```ts
-        model: pick("GEMINI_MODEL", "gemini-3.8-flash"),
+        model: pick("GEMINI_MODEL", "gemini-2.5-flash"),
 ```
 
 ### 1b. Cap thinking tokens
@@ -228,7 +230,7 @@ Replace the Gemini block with:
 # Current models: https://ai.google.dev/gemini-api/docs/models
 #
 # GEMINI_API_KEY=AIza...  (or AQ.... — both work, the app never inspects the prefix)
-# GEMINI_MODEL=gemini-3.8-flash
+# GEMINI_MODEL=gemini-2.5-flash
 #
 # Gemini 3.x reasons before answering and those tokens come out of the response
 # budget, so the client asks for minimal thinking by default. Raise it only if

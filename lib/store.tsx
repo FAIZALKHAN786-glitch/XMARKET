@@ -82,6 +82,7 @@ interface StoreValue {
   /* actions */
   refresh: () => Promise<void>;
   refreshAccount: () => Promise<void>;
+  refreshAiStatus: (probe?: boolean) => Promise<AiStatus>;
   setRole: (role: Role) => void;
   setWeights: (weights: Weights) => void;
   toggleSaved: (requirementId: string) => void;
@@ -196,6 +197,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       );
       setSynced(true);
     }
+  }, []);
+
+  const refreshAiStatus = useCallback(async (probe = false) => {
+    const next = await api.ai.status({ probe });
+    setAiStatus(next);
+    return next;
   }, []);
 
   useEffect(() => {
@@ -319,6 +326,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       dismissToast,
       refresh,
       refreshAccount,
+      refreshAiStatus,
 
       setRole: (role) => setPrefs((p) => ({ ...p, role })),
       setWeights: (weights) => setPrefs((p) => ({ ...p, weights })),
@@ -482,6 +490,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dismissToast,
     refresh,
     refreshAccount,
+    refreshAiStatus,
     withBusy,
   ]);
 

@@ -1,4 +1,4 @@
-import { ok, readQuery, route } from "@/lib/server/http";
+import { clientKey, rateLimit, ok, readQuery, route } from "@/lib/server/http";
 import { health, status } from "@/lib/server/llm";
 import { listEvents } from "@/lib/server/repo";
 import { z } from "zod";
@@ -24,7 +24,8 @@ const statusQuery = z.object({
  */
 export const GET = route(async (request: Request) => {
   const query = readQuery(request, statusQuery);
-  const events = await listEvents(40);
+  if (query.probe) rateLimit(clientKey(request, "ai-probe"), 6, 60_000);
+  const events = await listEvents(40).catch(() => []);
   const probe = query.probe ? await health() : undefined;
 
   return ok({

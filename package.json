@@ -2,7 +2,7 @@
   "name": "xmarket",
   "version": "0.1.0",
   "private": true,
-  "description": "XMARKET — a needs-first reverse marketplace where buyers post requirements and providers bid, ranked by an intelligent compatibility engine.",
+  "description": "XMARKET \u2014 a needs-first reverse marketplace where buyers post requirements and providers bid, ranked by an intelligent compatibility engine.",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "next build",
@@ -18,7 +18,9 @@
     "tags:check": "node --experimental-strip-types scripts/tag-check.mjs",
     "db:dev": "node scripts/dev-postgres.mjs",
     "py:install": "node scripts/py.mjs install",
-    "py:dev": "node scripts/py.mjs dev"
+    "py:dev": "node scripts/py.mjs dev",
+    "test:gemini": "node scripts/gemini-test.mjs && node scripts/ai-transport-test.mjs && node scripts/gemini-check-test.mjs",
+    "gemini:check": "node scripts/gemini-check.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

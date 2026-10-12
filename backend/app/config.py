@@ -19,7 +19,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = BACKEND_DIR.parent
 
 DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DATA_DIR = ROOT_DIR / "data"
 
 
@@ -135,7 +135,7 @@ def load_config() -> Config:
 
     cfg = Config(
         gemini_api_key=_pick("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        gemini_model=_pick("GEMINI_MODEL", default=DEFAULT_GEMINI_MODEL),
+        gemini_model=_pick("GEMINI_MODEL", default=DEFAULT_GEMINI_MODEL).removeprefix("models/"),
         gemini_base_url=_pick(
             "GEMINI_BASE_URL", default=DEFAULT_GEMINI_BASE_URL
         ).rstrip("/"),

@@ -32,9 +32,9 @@ const RULES_TAIL = "\\n\\nBudget rules:\\n- budgetMax is the TOTAL value of the 
 
 const OLD_TAIL = "\\n\\nIf no budget is stated, infer a defensible range for the work described and list it as an assumption.";
 
-const ENV_NEW = "# --- Google Gemini (recommended, free tier) ---------------------------------\n# Google retires Gemini models for new accounts regularly, and a retired model\n# returns HTTP 404 (\"no longer available to new users\") \u2014 the app reports this\n# as a bad_request with Google's own message, which names the replacement.\n# If that happens, set the model below to a current one.\n# Current models: https://ai.google.dev/gemini-api/docs/models\n#\n# GEMINI_API_KEY=AIza...  (or AQ.... \u2014 both work, the app never inspects the prefix)\n# GEMINI_MODEL=gemini-3.8-flash\n#\n# Gemini 3.x reasons before answering and those tokens come out of the response\n# budget, so the client asks for minimal thinking by default. Raise it only if\n# you want deeper deliberation: low | medium | high\n# GEMINI_THINKING_LEVEL=low";
+const ENV_NEW = "# --- Google Gemini (recommended, free tier) ---------------------------------\n# Google retires Gemini models for new accounts regularly, and a retired model\n# returns HTTP 404 (\"no longer available to new users\") \u2014 the app reports this\n# as a bad_request with Google's own message, which names the replacement.\n# If that happens, set the model below to a current one.\n# Current models: https://ai.google.dev/gemini-api/docs/models\n#\n# GEMINI_API_KEY=AIza...  (or AQ.... \u2014 both work, the app never inspects the prefix)\n# GEMINI_MODEL=gemini-3.5-flash-lite\n#\n# Gemini 3.x reasons before answering and those tokens come out of the response\n# budget, so the client asks for minimal thinking by default. Raise it only if\n# you want deeper deliberation: low | medium | high\n# GEMINI_THINKING_LEVEL=low";
 
-const OLD_ENV = "# --- Google Gemini (recommended, free tier) ---------------------------------\n# GEMINI_API_KEY=AIza...\n# GEMINI_MODEL=gemini-2.5-flash";
+const OLD_ENV = "# --- Google Gemini (recommended, free tier) ---------------------------------\n# GEMINI_API_KEY=AIza...\n# GEMINI_MODEL=gemini-3.5-flash-lite";
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -87,14 +87,14 @@ if (!existsSync(path.join(root, "package.json"))) {
     let t = file.text;
 
     // 1. Current default model.
-    if (/pick\("GEMINI_MODEL",\s*"gemini-3\.8-flash"\)/.test(t)) {
-      record(true, `${rel} - default model`, "already gemini-3.8-flash");
+    if (/pick\("GEMINI_MODEL",\s*"gemini-3\.5-flash-lite"\)/.test(t)) {
+      record(true, `${rel} - default model`, "already gemini-3.5-flash-lite");
     } else if (/pick\("GEMINI_MODEL",\s*"[^"]*"\)/.test(t)) {
       t = t.replace(
         /pick\("GEMINI_MODEL",\s*"[^"]*"\)/,
-        () => 'pick("GEMINI_MODEL", "gemini-3.8-flash")'
+        () => 'pick("GEMINI_MODEL", "gemini-3.5-flash-lite")'
       );
-      record(true, `${rel} - default model`, "set to gemini-3.8-flash");
+      record(true, `${rel} - default model`, "set to gemini-3.5-flash-lite");
     } else {
       record(false, `${rel} - default model`, "could not find the GEMINI_MODEL default");
     }

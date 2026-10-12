@@ -17,11 +17,12 @@ import { Button } from "./ui/primitives";
  * not.
  */
 export function SystemStatus({ className }: { className?: string }) {
-  const { connected, syncError, aiStatus, refresh, busy, pushToast } = useStore();
+  const { connected, syncError, aiStatus, refreshAiStatus, refresh, busy, pushToast } = useStore();
   const [open, setOpen] = React.useState(false);
   const [clearing, setClearing] = React.useState(false);
   const [probing, setProbing] = React.useState(false);
   const [probe, setProbe] = React.useState<import("@/lib/api-client").AiProbe | null>(null);
+  React.useEffect(() => { setProbe(aiStatus?.probe ?? null); }, [aiStatus]);
   const syncing = Boolean(busy["requirement:create"] || busy["bid:create"]);
 
   const clearCache = async () => {
@@ -52,7 +53,7 @@ export function SystemStatus({ className }: { className?: string }) {
   const testKey = async () => {
     setProbing(true);
     try {
-      const result = await api.ai.status({ probe: true });
+      const result = await refreshAiStatus(true);
       setProbe(result.probe ?? null);
       if (result.probe?.ok) {
         pushToast({
@@ -81,7 +82,8 @@ export function SystemStatus({ className }: { className?: string }) {
     }
   };
 
-  const aiLive = aiStatus?.live ?? false;
+  const configured = aiStatus?.live ?? false;
+  const aiLive = configured && probe?.ok === true;
 
   return (
     <div className={cn("relative", className)}>
@@ -104,7 +106,7 @@ export function SystemStatus({ className }: { className?: string }) {
         />
         {connected ? "API live" : "API offline"}
         <span className="text-white/20">·</span>
-        {aiLive ? "AI live" : "AI offline"}
+        {aiLive ? "AI live" : configured ? (probe ? "AI unavailable" : "AI configured") : "AI offline"}
       </button>
 
       {open && (
@@ -137,17 +139,17 @@ export function SystemStatus({ className }: { className?: string }) {
                 value={
                   aiLive
                     ? `${aiStatus?.provider} · ${aiStatus?.model}`
-                    : "Heuristic engine"
+                    : configured ? "Provider needs verification" : "Heuristic engine"
                 }
                 detail={
                   aiLive
                     ? "Brief parsing, bid scoring, drafting, shortlist summaries and the private workspace assistant use the model."
-                    : "No API key set, so AI endpoints return deterministic analysis labelled as offline."
+                    : probe?.detail ?? (configured ? "A key is configured. Use Test the key to verify the model can answer." : "No API key set, so AI endpoints return deterministic analysis labelled as offline.")
                 }
               />
             </div>
 
-            {!aiLive && (
+            {!configured && (
               <div className="mt-3 rounded-lg border border-white/12 bg-white/5 p-3">
                 <p className="text-[0.6875rem] leading-relaxed faint">
                   Add one of{" "}
@@ -190,7 +192,7 @@ export function SystemStatus({ className }: { className?: string }) {
                   <PlugZap className={cn("size-3.5", probing && "animate-pulse")} />
                   {probing ? "Testing…" : "Test the key"}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => refresh()} disabled={syncing}>
+                <Button size="sm" variant="ghost" onClick={() => { void refresh(); void refreshAiStatus().catch(() => undefined); }} disabled={syncing}>
                   <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
                   Resync
                 </Button>
