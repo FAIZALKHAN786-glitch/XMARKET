@@ -1,64 +1,54 @@
-import { z } from "zod";
-import { ApiError, ok, rateLimit, route } from "@/lib/server/http";
-import {
-  AccountError,
-  createBuyer,
-  createSeller,
-  publicAccount,
-} from "@/lib/server/accounts";
+import { ApiError, ok, readBody, route } from "@/lib/server/http";
 import { writeSession } from "@/lib/server/session";
-import { categoryId } from "@/lib/server/schema";
+import { AccountError, createBuyer, createSeller, publicAccount } from "@/lib/server/accounts";
+import { createProvider } from "@/lib/server/repo";
+import { registerInput } from "@/lib/server/schema";
+import { CATEGORY_LABELS } from "@/lib/xmarket";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const buyerSchema = z.object({
-  role: z.literal("buyer"),
-  email: z.string().trim().email().max(200),
-  password: z.string().min(8).max(200),
-  displayName: z.string().trim().min(2).max(120),
-  company: z.string().trim().max(160).optional(),
-});
+export const POST = route(async (request: Request) => {
+  const input = await readBody(request, registerInput);
 
-const sellerSchema = z.object({
-  role: z.literal("seller"),
-  email: z.string().trim().email().max(200),
-  password: z.string().min(8).max(200),
-  merchantName: z.string().trim().min(2).max(160),
-  shopName: z.string().trim().min(2).max(160),
-  domain: categoryId,
-});
+  let account;
+  try {
+    account =
+      input.role === "seller"
+        ? await createSeller({
+            username: input.username,
+            password: input.password,
+            shopName: input.shopName!,
+            shopLocation: input.shopLocation!,
+            shopCategory: input.shopCategory!,
+          })
+        : await createBuyer({ username: input.username, password: input.password });
+  } catch (error) {
+    if (error instanceof AccountError) throw new ApiError("conflict", error.message);
+    throw error;
+  }
 
-/**
- * POST /api/auth/register — create a buyer or a seller and sign them straight
- * in. Sellers receive a platform-issued merchant id in the response; they never
- * choose it, because the performance score hangs off it.
- */
-export const POST = route(
-  async (request: Request) => {
-    rateLimit("auth:register", 10, 60_000);
+  // A seller needs a provider row before it can bid — the bid route looks the
+  // merchant up by its XMarket ID.
+  if (account.role === "seller") {
+    await createProvider({
+      id: account.xMarketId,
+      name: account.shopName!,
+      tagline: `${CATEGORY_LABELS[account.shopCategory!]} provider · ${account.shopLocation}`,
+      location: account.shopLocation!,
+      initials: account.shopName!.slice(0, 2).toUpperCase(),
+      categories: [account.shopCategory!],
+      skills: [CATEGORY_LABELS[account.shopCategory!], "Custom work"],
+      rating: 5,
+      reviews: 0,
+      completedJobs: 0,
+      onTimeRate: 100,
+      responseHours: 4,
+      verified: false,
+      memberSince: new Date().getFullYear(),
+    });
+  }
 
-    const body = await request.json().catch(() => null);
-    const role = (body as { role?: string } | null)?.role;
-
-    try {
-      if (role === "seller") {
-        const input = sellerSchema.parse(body);
-        const account = await createSeller(input);
-        await writeSession(account);
-        return ok({ account: publicAccount(account), merchantId: account.merchantId });
-      }
-
-      const input = buyerSchema.parse(body);
-      const account = await createBuyer(input);
-      await writeSession(account);
-      return ok({ account: publicAccount(account) });
-    } catch (error) {
-      if (error instanceof AccountError) {
-        throw new ApiError("conflict", error.message);
-      }
-      throw error;
-    }
-  },
-  "POST /api/auth/register"
-);
+  await writeSession(account);
+  return ok({ account: publicAccount(account) }, { status: 201 });
+}, "POST /api/auth/register");

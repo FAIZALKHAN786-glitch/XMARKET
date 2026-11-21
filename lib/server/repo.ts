@@ -1,21 +1,6 @@
 import { DEFAULT_WEIGHTS, compatibility, rankBids } from "@/lib/engine";
-import type {
-  Bid,
-  BidStatus,
-  Provider,
-  Requirement,
-  RequirementStatus,
-  Score,
-  Weights,
-} from "@/lib/types";
+import type { Bid, BidStatus, Provider, Requirement, RequirementStatus, Weights } from "@/lib/types";
 import { getDb, mutate, type AuditEvent } from "./db";
-import { publish } from "./stream";
-
-/* ==========================================================================
-   Repository — the only module the API routes talk to.
-   Every mutation writes an audit event, so the activity feed and any future
-   compliance view read from the same log.
-   ========================================================================== */
 
 const uid = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -28,12 +13,9 @@ async function record(event: Omit<AuditEvent, "id" | "at">) {
       ...event,
     };
     db.events.unshift(created);
-    db.events = db.events.slice(0, 500);
+    db.events = db.events.slice(0, 200);
     return created;
   });
-  // Published only after the write has landed, so a client that refetches on
-  // receipt is guaranteed to see the record that caused the event.
-  publish(entry);
   return entry;
 }
 
@@ -144,10 +126,6 @@ export async function createBid(
   return bid;
 }
 
-/**
- * Status changes are guarded: an awarded requirement cannot receive a second
- * acceptance, and accepting one offer rejects the rest atomically.
- */
 export async function setBidStatus(
   id: string,
   status: BidStatus,
@@ -159,14 +137,9 @@ export async function setBidStatus(
   const result = await mutate((db) => {
     const bid = db.bids.find((b) => b.id === id);
     if (!bid) {
-      return {
-        ok: false as const,
-        code: "not_found" as const,
-        message: "Bid not found",
-      };
+      return { ok: false as const, code: "not_found" as const, message: "Bid not found" };
     }
 
-    const requirement = db.requirements.find((r) => r.id === bid.requirementId);
     const alreadyAwarded = db.bids.find(
       (b) => b.requirementId === bid.requirementId && b.status === "accepted"
     );
@@ -187,10 +160,6 @@ export async function setBidStatus(
           other.status = "rejected";
         }
       }
-      if (requirement) requirement.status = "awarded";
-    } else if (requirement && requirement.status === "awarded") {
-      // Reopening the decision returns the requirement to review.
-      requirement.status = "reviewing";
     }
 
     bid.status = status;
@@ -203,10 +172,7 @@ export async function setBidStatus(
       actor,
       bidId: id,
       requirementId: result.bid.requirementId,
-      summary:
-        status === "accepted"
-          ? `Offer accepted — ${result.rejectedSiblings.length} other offers declined`
-          : `Offer ${status}`,
+      summary: status === "accepted" ? `Offer accepted — ${result.rejectedSiblings.length} declined` : `Offer ${status}`,
       meta: { status, rejectedSiblings: result.rejectedSiblings },
     });
   }
@@ -220,17 +186,7 @@ export async function listProviders() {
   return db.providers;
 }
 
-/**
- * Register a marketplace provider.
- *
- * Called when a seller account is created, so the merchant ID issued at sign-up
- * is also a provider the bidding endpoints can resolve. Without this bridge a
- * seller can register and then be told "Unknown provider" the moment they try
- * to bid.
- */
-export async function createProvider(
-  input: Omit<Provider, "id"> & { id: string }
-): Promise<Provider> {
+export async function createProvider(input: Omit<Provider, "id"> & { id: string }): Promise<Provider> {
   const existing = await getProvider(input.id);
   if (existing) return existing;
 
@@ -240,7 +196,7 @@ export async function createProvider(
     return record;
   });
   await record({
-    type: "provider.created",
+    type: "requirement.created",
     actor: "system",
     summary: `Provider ${provider.name} registered`,
     meta: { providerId: provider.id },
@@ -267,58 +223,35 @@ export async function getBuyer(id: string) {
 
 export interface RankOptions {
   weights?: Weights;
-  /** Semantic fit per bid id, produced by the AI scoring endpoint. */
   semantic?: Record<string, number>;
 }
 
 export interface RankedBid {
   bid: Bid;
-  provider: Awaited<ReturnType<typeof listProviders>>[number] | undefined;
-  score: Score;
-  /** Present only when a semantic score was blended in. */
+  provider: Provider | undefined;
+  score: ReturnType<typeof compatibility>;
   semantic?: number;
 }
 
-/**
- * Ranking always happens on the server so the buyer's dashboard, the feed
- * badges and the API consumers cannot disagree about who is winning.
- */
 export function rank(
   requirement: Requirement,
   bids: Bid[],
-  providers: Awaited<ReturnType<typeof listProviders>>,
+  providers: Provider[],
   options: RankOptions = {}
 ) {
   const weights = options.weights ?? DEFAULT_WEIGHTS;
   const semantic = options.semantic;
   const w = weights.semantic ?? 0;
 
-  const ranked: RankedBid[] = rankBids(bids, requirement, providers, {
-    budget: weights.budget,
-    timeline: weights.timeline,
-    relevance: weights.relevance,
-  }).map((row) => {
+  const ranked: RankedBid[] = rankBids(bids, requirement, providers, weights).map((row) => {
     const sem = semantic?.[row.bid.id];
     if (sem === undefined || w <= 0) return { ...row };
 
-    // The AI factor is additive and opt-in: it never replaces the deterministic
-    // factors, it only shifts the blend when a caller asks for it.
     const base = Math.max(0.0001, 1 - w);
     const total = Math.round(base * row.score.total + w * sem);
     return {
       ...row,
-      score: {
-        ...row.score,
-        total,
-        grade:
-          total >= 85
-            ? ("Excellent" as const)
-            : total >= 72
-              ? ("Strong" as const)
-              : total >= 58
-                ? ("Fair" as const)
-                : ("Weak" as const),
-      },
+      score: { ...row.score, total },
       semantic: sem,
     };
   });
@@ -326,182 +259,11 @@ export function rank(
   return ranked.sort((a, b) => b.score.total - a.score.total);
 }
 
-/* ---------------------------------------------------------------- importing */
-
-export interface ImportOutcome {
-  imported: number;
-  skipped: { ref?: string; title: string; reason: string }[];
-  buyersCreated: number;
-  total: number;
-}
-
-/**
- * Bulk-creates requirements that came from an external source.
- *
- * Two deliberate behaviours: records are de-duplicated on the source's own
- * identifier so re-running an import is safe, and buyers are created from the
- * publisher's organisation name because an imported notice belongs to the
- * organisation that published it, not to the signed-in demo buyer.
- */
-export async function importRequirements(
-  records: (Omit<Requirement, "id" | "postedAt" | "views" | "status" | "buyerId"> & {
-    buyerName: string;
-  })[],
-  options: { actor?: string; dryRun?: boolean } = {}
-): Promise<ImportOutcome> {
-  const db = await getDb();
-  const seen = new Set(
-    db.requirements.map((r) => r.source?.ref).filter((v): v is string => Boolean(v))
-  );
-  const knownBuyers = new Map(db.buyers.map((b) => [b.name.toLowerCase(), b.id]));
-
-  const skipped: ImportOutcome["skipped"] = [];
-  const accepted: typeof records = [];
-  // De-duplicate inside the batch as well as against the database.
-  const batchSeen = new Set<string>();
-
-  for (const record of records) {
-    const ref = record.source?.ref;
-    if (ref && seen.has(ref)) {
-      skipped.push({ ref, title: record.title, reason: "already imported" });
-      continue;
-    }
-    if (ref && batchSeen.has(ref)) {
-      skipped.push({ ref, title: record.title, reason: "duplicate in this batch" });
-      continue;
-    }
-    if (ref) batchSeen.add(ref);
-    accepted.push(record);
-  }
-
-  const newBuyerNames = [
-    ...new Set(
-      accepted
-        .map((r) => r.buyerName)
-        .filter((name) => !knownBuyers.has(name.toLowerCase()))
-    ),
-  ];
-
-  if (options.dryRun) {
-    return {
-      imported: 0,
-      skipped,
-      buyersCreated: newBuyerNames.length,
-      total: accepted.length,
-    };
-  }
-
-  await mutate((d) => {
-    for (const name of newBuyerNames) {
-      const id = uid("b_org");
-      knownBuyers.set(name.toLowerCase(), id);
-      d.buyers.push({
-        id,
-        name,
-        company: name,
-        location: "United Kingdom",
-        initials: initials(name),
-        rating: 0,
-        posted: 0,
-        awarded: 0,
-      });
-    }
-    for (const record of accepted) {
-      const { buyerName, ...rest } = record;
-      const buyerId = knownBuyers.get(buyerName.toLowerCase()) ?? "b_me";
-      d.requirements.unshift({
-        ...rest,
-        buyerId,
-        id: uid("r"),
-        postedAt: rest.source?.importedAt ?? new Date().toISOString(),
-        views: 0,
-        status: "open",
-      });
-    }
-    const buyer = d.buyers.find((b) => b.id === "b_me");
-    if (buyer) buyer.posted += 0;
-  });
-
-  await record({
-    type: "requirement.created",
-    actor: options.actor ?? "import",
-    summary: `Imported ${accepted.length} requirement${
-      accepted.length === 1 ? "" : "s"
-    } from ${accepted[0]?.source?.name ?? "an external source"}`,
-    meta: {
-      imported: accepted.length,
-      skipped: skipped.length,
-      buyersCreated: newBuyerNames.length,
-    },
-  });
-
-  return {
-    imported: accepted.length,
-    skipped,
-    buyersCreated: newBuyerNames.length,
-    total: records.length,
-  };
-}
-
-function initials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .filter((w) => /[a-z]/i.test(w[0] ?? ""))
-      .slice(0, 2)
-      .map((w) => w[0]!.toUpperCase())
-      .join("") || "??"
-  );
-}
-
-/* ----------------------------------------------------------------- events */
-
+/* -------------------------------------------------------------- events */
 
 export async function listEvents(limit = 50) {
   const db = await getDb();
   return db.events.slice(0, limit);
 }
 
-/* -------------------------------------------------------------- AI cache */
-
-export async function readCache<T>(key: string) {
-  const db = await getDb();
-  const hit = db.aiCache[key];
-  if (!hit) return undefined;
-  const age = Date.now() - new Date(hit.at).getTime();
-  if (age > 1000 * 60 * 60 * 24 * 7) return undefined;
-  return hit as { value: T; at: string; provider: string };
-}
-
-/**
- * Drops every cached model reply. Worth doing after switching provider, model
- * or API key — otherwise yesterday's answers keep being served as fresh.
- */
-export async function clearAiCache() {
-  return mutate((db) => {
-    const dropped = Object.keys(db.aiCache).length;
-    db.aiCache = {};
-    return dropped;
-  });
-}
-
-export async function writeCache(key: string, value: unknown, provider: string) {
-  return mutate((db) => {
-    db.aiCache[key] = { value, at: new Date().toISOString(), provider };
-    const keys = Object.keys(db.aiCache);
-    if (keys.length > 400) {
-      // Cheap eviction: drop the oldest quarter.
-      const sorted = keys.sort(
-        (a, b) =>
-          new Date(db.aiCache[a].at).getTime() -
-          new Date(db.aiCache[b].at).getTime()
-      );
-      for (const k of sorted.slice(0, Math.floor(keys.length / 4))) {
-        delete db.aiCache[k];
-      }
-    }
-  });
-}
-
 export { record as recordEvent, uid };
-export { compatibility };

@@ -15,7 +15,6 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** GET /api/requirements/:id — requirement, buyer, and offers ranked server-side. */
 export const GET = route(async (_request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const requirement = await getRequirement(id);
@@ -29,15 +28,9 @@ export const GET = route(async (_request: Request, ctx: Ctx) => {
 
   await incrementViews(id);
 
-  return ok({
-    requirement,
-    buyer,
-    bids,
-    ranked: rank(requirement, bids, providers),
-  });
+  return ok({ requirement, buyer, bids, ranked: rank(requirement, bids, providers) });
 }, "GET /api/requirements/:id");
 
-/** PATCH /api/requirements/:id — lifecycle transitions. */
 export const PATCH = route(async (request: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const { status } = await readBody(request, requirementStatusPatch);

@@ -158,12 +158,20 @@ export interface Account {
   passwordHash: string;
   displayName: string;
   createdAt: string;
+  /** Login handle. Legacy accounts fall back to the email local part. */
+  username?: string;
+  /** The multi-purpose public identifier used by every novelty feature. */
+  xMarketId: string;
   /** Buyer-only. */
   company?: string;
-  /** Seller-only. Issued by the platform, never chosen by the seller. */
+  /** Seller-only. Same value as xMarketId — kept for the bid authorisation path. */
   merchantId?: string;
   merchantName?: string;
   shopName?: string;
+  shopLocation?: string;
+  shopCategory?: CategoryId;
+  /** Budget records created before this instant are excluded from tracking. */
+  budgetResetAt?: string;
   /** The single category this merchant trades in. Drives requirement routing. */
   domain?: CategoryId;
   /**

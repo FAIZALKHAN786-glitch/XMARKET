@@ -5,6 +5,7 @@ import type {
   Provider,
   Requirement,
 } from "./types";
+import { DEMO_SELLER_ID } from "./xmarket";
 
 export const ME_BUYER = "b_me";
 export const ME_PROVIDER = "p_me";
@@ -224,6 +225,22 @@ export const PROVIDERS: Provider[] = [
     verified: false,
     memberSince: 2020,
   },
+  {
+    id: DEMO_SELLER_ID,
+    name: "Demo Workshop",
+    tagline: "Five-axis machining and anodising for pilot production runs",
+    location: "Austin, TX",
+    initials: "DW",
+    categories: ["manufacturing"],
+    skills: ["CNC", "Anodising", "CMM inspection"],
+    rating: 4.9,
+    reviews: 38,
+    completedJobs: 52,
+    onTimeRate: 98,
+    responseHours: 2,
+    verified: true,
+    memberSince: 2020,
+  },
 ];
 
 export const REQUIREMENTS: Requirement[] = [
@@ -415,6 +432,25 @@ export const REQUIREMENTS: Requirement[] = [
     ],
     status: "open",
     views: 264,
+  },
+  {
+    id: "r_awarded",
+    title: "Anodised sensor brackets — awarded pilot batch",
+    summary: "Completed pilot with an accepted bid so buyer budget tracking has real history.",
+    description:
+      "Pilot batch of anodised sensor brackets delivered under a fixed-price award. Included in the demo dataset to show how accepted bids become a buyer's spend history.",
+    category: "manufacturing",
+    buyerId: ME_BUYER,
+    budgetMax: 50000,
+    budgetTarget: 45000,
+    deadline: inDays(-20),
+    closesAt: inDays(-40),
+    postedAt: ago(90),
+    location: "Austin, TX",
+    tags: ["CNC", "Anodising", "Pilot batch"],
+    mustHaves: ["CMM report", "Matte black anodise"],
+    status: "awarded",
+    views: 132,
   },
 ];
 
@@ -739,5 +775,69 @@ export const BIDS: Bid[] = [
     ],
     createdAt: ago(4),
     status: "pending",
+  },
+  {
+    id: "bid_awarded_demo",
+    requirementId: "r_awarded",
+    providerId: "p_atlas",
+    price: 45200,
+    deliveryDays: 30,
+    pitch:
+      "Delivered the anodised bracket pilot with a full CMM report and matte black finish. Payment released on delivery confirmation.",
+    coversTags: ["CNC", "Anodising", "Pilot batch"],
+    milestones: [
+      { label: "Tooling and first article", days: 8 },
+      { label: "Production batch", days: 24 },
+      { label: "Delivery confirmed — funds released", days: 30 },
+    ],
+    createdAt: ago(75),
+    status: "accepted",
+  },
+  {
+    id: "bid_pending_docs_demo",
+    requirementId: "r_docs",
+    providerId: "p_meridian",
+    price: 12800,
+    deliveryDays: 22,
+    pitch:
+      "Discovery sprint and design-system foundation for the fleet console, with a fixed-price handover package.",
+    coversTags: ["Next.js", "Design system", "Accessibility"],
+    milestones: [{ label: "Discovery", days: 8 }, { label: "Design system v1", days: 22 }],
+    createdAt: ago(1),
+    status: "shortlisted",
+  },
+  {
+    id: "bid_demo_seller_pending",
+    requirementId: "r_mech",
+    providerId: DEMO_SELLER_ID,
+    price: 71200,
+    deliveryDays: 32,
+    pitch:
+      "Our Austin shop will machine the first article in nine days, anodise in-house, and include a per-batch CMM report with every shipment.",
+    coversTags: ["CNC", "Anodising", "ISO 9001"],
+    milestones: [
+      { label: "Tooling and first article", days: 9 },
+      { label: "Pilot production", days: 28 },
+      { label: "Delivery confirmation", days: 32 },
+    ],
+    createdAt: ago(2),
+    status: "pending",
+  },
+  {
+    id: "bid_demo_seller_won",
+    requirementId: "r_awarded",
+    providerId: DEMO_SELLER_ID,
+    price: 44800,
+    deliveryDays: 28,
+    pitch:
+      "Completed the anodised bracket pilot with full inspection records. Funds held against our XMarket ID until delivery confirmation.",
+    coversTags: ["CNC", "Anodising", "Pilot batch"],
+    milestones: [
+      { label: "Tooling approved", days: 7 },
+      { label: "Batch produced", days: 25 },
+      { label: "Delivery confirmed — funds released", days: 28 },
+    ],
+    createdAt: ago(70),
+    status: "accepted",
   },
 ];

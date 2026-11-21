@@ -55,6 +55,14 @@ export async function assertOwnsBid(bidId: string): Promise<Account> {
  * merchant ID. Without the second half a seller could submit offers under
  * another merchant's identity and inherit their performance score.
  */
+export async function requireSeller(): Promise<Account> {
+  const account = await requireAccount();
+  if (account.role !== "seller") {
+    throw new ApiError("forbidden", "Only a seller can place an offer.");
+  }
+  return account;
+}
+
 export async function assertSellerForProvider(
   providerId: string
 ): Promise<Account> {
